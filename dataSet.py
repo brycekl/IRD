@@ -113,21 +113,22 @@ if __name__ == '__main__':
     import transforms as T
     mean = (0.12888692, 0.12888692, 0.12888692)
     std = (0.16037938, 0.16037938, 0.16037938)
+    base_size = 256
     trans = T.Compose([
-        T.RandomResize(int(0.8 * 256), 256, resize_ratio=1, shrink_ratio=1),
-        T.RandomHorizontalFlip(0.5),
-        T.RandomVerticalFlip(0.5),
-        # T.RandomRotation(10, rotate_ratio=0.7, expand_ratio=0.7),
+        # T.RandomResize(int(0.8 * base_size), base_size),
+        T.Resize([base_size]),
+        T.RandomHorizontalFlip(1),
+        T.RandomVerticalFlip(1),
         T.GenerateHeatmap(),
-        T.ToTensor(),
-        T.Normalize(mean=mean, std=std),
-        T.MyPad(256)
+        # T.ToTensor(),
+        # T.Normalize(mean=mean, std=std),
+        T.MyPad([base_size])
     ])
-    mydata = YanMianDataset(d, data_type='test', transforms=trans)
+    mydata = YanMianDataset(d, data_type='train', transforms=trans)
     # a,b = mydata[0]
     # c =1
     for i in range(len(mydata)):
-        a,b = mydata[i]
+        img, target = mydata[i]
         print(i)
 
 

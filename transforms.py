@@ -236,26 +236,37 @@ class GetROI(object):
 
 class MyPad(object):
     def __init__(self, size):
-        self.size = size
+        if len(size) == 1:
+            self.size_h = self.size_w = size[0]
+        else:
+            self.size_h, self.size_w = size[0], size[1]
 
     def __call__(self, img, target):
-        h, w = img.shape[-2:]
-        w_pad, h_pad = 256 - w, 256 - h
+        if isinstance(img, Image.Image):
+            w, h = img.size
+        else:
+            h, w = img.shape[-2:]
+        w_pad, h_pad = self.size_w - w, self.size_h - h
         data_type = target['data_type']
         landmark = target['landmark']
-        if data_type == 'val':
-            pad_size = [w_pad // 2, h_pad // 2, w_pad - w_pad // 2, h_pad - h_pad // 2]
-            landmark = {i: [j[0] + w_pad // 2, j[1] + h_pad // 2] for i, j in landmark.items()}
-        elif data_type == 'test':
-            pad_size = [0, 0, w_pad, h_pad]
+        # if data_type == 'val':
+        #     pad_size = [w_pad // 2, h_pad // 2, w_pad - w_pad // 2, h_pad - h_pad // 2]
+        #     landmark = {i: [j[0] + w_pad // 2, j[1] + h_pad // 2] for i, j in landmark.items()}
+        if data_type == 'val' or data_type == 'test':
+            w_pad_l = 0
+            h_pad_l = 0
         else:  # train 可以用各种填充方式
-            if np.random.random() < 0.7:
-                w_pad_r = np.random.randint(0, w_pad + 1) if w_pad >= 0 else np.random.randint(w_pad, 1)
-                h_pad_r = np.random.randint(0, h_pad + 1) if h_pad >= 0 else np.random.randint(h_pad, 1)
+            random_ = np.random.random()
+            if random_ < 0.5:
+                w_pad_l = 0
+                h_pad_l = 0
+            elif random_ < 0.8:
+                w_pad_l = np.random.randint(0, w_pad + 1) if w_pad >= 0 else np.random.randint(w_pad, 1)
+                h_pad_l = np.random.randint(0, h_pad + 1) if h_pad >= 0 else np.random.randint(h_pad, 1)
             else:
-                w_pad_r, h_pad_r = int(w_pad / 2), int(h_pad / 2)
-            pad_size = [w_pad_r, h_pad_r, w_pad - w_pad_r, h_pad - h_pad_r]
-            landmark = {i: [j[0] + w_pad_r, j[1] + h_pad_r] for i, j in landmark.items()}
+                w_pad_l, h_pad_l = int(w_pad / 2), int(h_pad / 2)
+        pad_size = [w_pad_l, h_pad_l, w_pad - w_pad_l, h_pad - h_pad_l]
+        landmark = {i: [j[0] + w_pad_l, j[1] + h_pad_l] for i, j in landmark.items()}
 
         img = F.pad(img, pad_size, fill=0)
         target['landmark'] = landmark
@@ -368,7 +379,7 @@ class GenerateHeatmap(object):
 
     def __call__(self, img, target):
         # 生成mask, landmark的误差在int()处
-        landmark = {i: [int(target['landmark'][i][0]), int(target['landmark'][i][1])] for i in target['landmark']}
+        landmark = {i: [int(target['landmark'][i][0]+0.5), int(target['landmark'][i][1]+0.5)] for i in target['landmark']}
         mask = torch.zeros((2, *img.size[::-1]), dtype=torch.float)
         # 根据landmark 绘制高斯热图 （进行点分割）
         for label in landmark:

@@ -5,12 +5,12 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from torch.utils.tensorboard import SummaryWriter
 
 import transforms as T
-from src import UNet, u2net, MobileV3Unet, VGG16UNet, resnet_unet
-from torch.utils.tensorboard import SummaryWriter
-from train_utils import train_one_epoch, evaluate, create_lr_scheduler, init_distributed_mode, save_on_master, mkdir
 from dataSet import YanMianDataset
+from src import UNet, u2net, MobileV3Unet, VGG16UNet, resnet_unet
+from train_utils import train_one_epoch, evaluate, create_lr_scheduler, init_distributed_mode, save_on_master, mkdir
 
 
 class SegmentationPresetTrain:
@@ -33,7 +33,7 @@ class SegmentationPresetTrain:
             T.GenerateHeatmap(var=var),
             T.ToTensor(),
             T.Normalize(mean=mean, std=std),
-            T.MyPad(256)
+            T.MyPad([base_size])
         ])
 
         self.transforms = T.Compose(trans)
@@ -43,27 +43,24 @@ class SegmentationPresetTrain:
 
 
 class SegmentationPresetEval:
-    def __init__(self, var=40, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+    def __init__(self, base_size, var=40, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
         self.transforms = T.Compose([
-            T.Resize([256]),
+            T.Resize([base_size]),
             T.GenerateHeatmap(var=var),
             T.ToTensor(),
             T.Normalize(mean=mean, std=std),
-            T.MyPad(256)
+            T.MyPad([base_size])
         ])
 
     def __call__(self, img, target):
         return self.transforms(img, target)
 
 
-def get_transform(train, var=40, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
-    base_size = 256
-    crop_size = 480
-
+def get_transform(train, base_size=256, var=40, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
     if train:
         return SegmentationPresetTrain(base_size, var, mean=mean, std=std)
     else:
-        return SegmentationPresetEval(var, mean=mean, std=std)
+        return SegmentationPresetEval(base_size, var, mean=mean, std=std)
 
 
 def create_model(num_classes, num_classes_2=0, in_channel=3, base_c=32, model='unet'):
@@ -100,6 +97,7 @@ def main(args):
 
     # name = 'lr_' + str(lr)
     num_classes = args.num_classes
+    base_size = args.base_size
     output_dir = args.output_dir
     # args.lr = lr
 
@@ -112,10 +110,12 @@ def main(args):
 
     var = 40
     train_dataset = YanMianDataset(args.data_path, data_type='train',
-                                   transforms=get_transform(train=True, var=var, mean=mean, std=std))
+                                   transforms=get_transform(train=True, base_size=base_size, var=var, mean=mean,
+                                                            std=std))
 
     val_dataset = YanMianDataset(args.data_path, data_type='val',
-                                 transforms=get_transform(train=False, var=var, mean=mean, std=std))
+                                 transforms=get_transform(train=False, base_size=base_size, var=var, mean=mean,
+                                                          std=std))
 
     print("Creating data loaders")
     # 将数据打乱后划分到不同的gpu上
@@ -127,10 +127,12 @@ def main(args):
         test_sampler = torch.utils.data.SequentialSampler(val_dataset)
 
     train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size,
-        sampler=train_sampler, num_workers=args.workers,  collate_fn=train_dataset.collate_fn, drop_last=False)
+                                                    sampler=train_sampler, num_workers=args.workers,
+                                                    collate_fn=train_dataset.collate_fn, drop_last=False)
 
     val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1,
-        sampler=test_sampler, num_workers=args.workers, collate_fn=train_dataset.collate_fn)
+                                                  sampler=test_sampler, num_workers=args.workers,
+                                                  collate_fn=train_dataset.collate_fn)
 
     print(len(train_dataset), len(val_dataset))
     print("Creating model")
@@ -150,7 +152,7 @@ def main(args):
     params_to_optimize = [p for p in model_without_ddp.parameters() if p.requires_grad]
 
     # optimizer = torch.optim.SGD(params_to_optimize, momentum=args.momentum, weight_decay=args.weight_decay)
-    optimizer = torch.optim.Adam(params_to_optimize, weight_decay=args.weight_decay)  # lr = 2e-4
+    optimizer = torch.optim.Adam(params_to_optimize, lr=args.lr, weight_decay=args.weight_decay)  # lr = 2e-4
     # optimizer = torch.optim.NAdam(params_to_optimize, weight_decay=args.weight_decay)
 
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
@@ -332,6 +334,7 @@ if __name__ == "__main__":
     parser.add_argument('--device', default='cuda', help='device')
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=2, type=int, help='num_classes')
+    parser.add_argument('--base-size', default=512, type=int, help='model input size')
     # 每块GPU上的batch_size
     parser.add_argument('-b', '--batch-size', default=32, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
