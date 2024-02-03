@@ -1,11 +1,11 @@
 import datetime
 import os
 import time
+import json
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.utils.tensorboard import SummaryWriter
 
 import transforms as T
 from dataSet import YanMianDataset
@@ -103,6 +103,8 @@ def main(args):
 
     if output_dir:
         mkdir(output_dir)
+    with open(f'{output_dir}/config.json', 'w') as json_file:
+        json.dump(vars(args), json_file)
 
     # 用来保存coco_info的文件
     # name = output_dir.split('/')[-1]
@@ -138,7 +140,7 @@ def main(args):
     print("Creating model")
     # create model num_classes equal background + foreground classes
 
-    model = create_model(num_classes=num_classes, in_channel=3, base_c=16, model='unet')
+    model = create_model(num_classes=num_classes, in_channel=3, base_c=args.unet_bc, model='unet')
     model.to(device)
 
     if args.sync_bn:
@@ -334,7 +336,8 @@ if __name__ == "__main__":
     parser.add_argument('--device', default='cuda', help='device')
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=2, type=int, help='num_classes')
-    parser.add_argument('--base-size', default=512, type=int, help='model input size')
+    parser.add_argument('--base-size', default=256, type=int, help='model input size')
+    parser.add_argument('--unet-bc', default=16, type=int, help='unet base channel')
     # 每块GPU上的batch_size
     parser.add_argument('-b', '--batch-size', default=32, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
@@ -344,12 +347,12 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', default=150, type=int, metavar='N',
                         help='number of total epochs to run')
     # 是否使用同步BN(在多个GPU之间同步)，默认不开启，开启后训练速度会变慢
-    parser.add_argument('--sync_bn', type=bool, default=False, help='whether using SyncBatchNorm')
+    parser.add_argument('--sync_bn', type=bool, default=True, help='whether using SyncBatchNorm')
     # 数据加载以及预处理的线程数
     parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
                         help='number of data loading workers (default: 4)')
     # 训练学习率，这里默认设置成0.01(使用n块GPU建议乘以n)，如果效果不好可以尝试修改学习率
-    parser.add_argument('--lr', default=3e-4, type=float,
+    parser.add_argument('--lr', default=3e-3, type=float,
                         help='initial learning rate')
     # SGD的momentum参数
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
@@ -364,7 +367,7 @@ if __name__ == "__main__":
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/unet_keypoint_test',
+    parser.add_argument('--output-dir', default='./model/unet_keypoint_lr',
                         help='path where to save')
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
