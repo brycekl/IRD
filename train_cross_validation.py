@@ -9,7 +9,7 @@ import torch
 import transforms as T
 from src import VGG16UNet
 from train_utils import train_one_epoch, evaluate, create_lr_scheduler, init_distributed_mode, save_on_master, mkdir
-from dataSet import YanMianDataset
+from dataSet import IRDDataset
 
 
 class SegmentationPresetTrain:
@@ -92,15 +92,9 @@ def main(args):
         # name = args.output_dir.split('/')[-1]
         results_file = args.output_dir + '/' + name + ".txt"
 
-        train_dataset = YanMianDataset(args.data_path,
-                                       data_type='train', json_path='./data/check_jsons',
-                                       mask_path='./data/check_masks', txt_path='./data/cross_val.txt', ki=ki, k=k,
-                                       transforms=get_transform(train=True, mean=mean, std=std), resize=[256, 256])
+        train_dataset = IRDDataset(data_type='train', ki=ki, k=k, transforms=get_transform(train=True, mean=mean, std=std), resize=[256, 256])
 
-        val_dataset = YanMianDataset(args.data_path,
-                                     data_type='val', json_path='./data/check_jsons',
-                                     mask_path='./data/check_masks', txt_path='./data/cross_val.txt', ki=ki, k=k,
-                                     transforms=get_transform(train=False, mean=mean, std=std), resize=[256, 256])
+        val_dataset = IRDDataset(data_type='val', ki=ki, k=k, transforms=get_transform(train=False, mean=mean, std=std), resize=[256, 256])
 
         print("Creating data loaders")
         if args.distributed:

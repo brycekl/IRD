@@ -2,7 +2,7 @@ import os
 import shutil
 import time
 import pandas as pd
-from dataSet import YanMianDataset
+from dataSet import IRDDataset
 import transforms as T
 from eva_utils.my_eval import *
 from eva_utils import analyze
@@ -65,8 +65,7 @@ def main():
     std = (0.2313, 0.2313, 0.2313)
     # from pil image to tensor and normalize
     data_transform = T.Compose([T.Resize([256]), T.ToTensor(), T.Normalize(mean=mean, std=std)])
-    test_data = YanMianDataset(os.getcwd(), transforms=data_transform, data_type='test', resize=[256, 256],
-                               num_classes=4, txt_path=test_txt)
+    test_data = IRDDataset(transforms=data_transform, data_type='test',)
     print(len(test_data))
 
     name_index = {8: 'upper_lip', 9: 'under_lip', 10: 'upper_midpoint', 11: 'under_midpoint', 12: 'chin', 13: 'nasion'}

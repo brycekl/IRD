@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 import transforms as T
-from dataSet import YanMianDataset
+from dataSet import IRDDataset
 from src import UNet, u2net, MobileV3Unet, VGG16UNet, resnet_unet
 from train_utils import train_one_epoch, evaluate, create_lr_scheduler, init_distributed_mode, save_on_master, mkdir
 
@@ -92,13 +92,16 @@ def main(args):
     print(args)
     device = torch.device(args.device)
 
-    mean = (0.12888692, 0.12888692, 0.12888692)
-    std = (0.16037938, 0.16037938, 0.16037938)
+    with open('data_utils/data.json', 'r') as reader:
+        json_list = json.load(reader)[args.position_type]
+        mean = json_list['train_info']['mean']
+        std = json_list['train_info']['std']
 
     # name = 'lr_' + str(lr)
     num_classes = args.num_classes
     base_size = args.base_size
     output_dir = args.output_dir
+    var = args.var
     # args.lr = lr
 
     if output_dir:
@@ -110,14 +113,11 @@ def main(args):
     # name = output_dir.split('/')[-1]
     results_file = output_dir + '/' + "log.txt"
 
-    var = 40
-    train_dataset = YanMianDataset(args.data_path, data_type='train',
-                                   transforms=get_transform(train=True, base_size=base_size, var=var, mean=mean,
-                                                            std=std))
+    train_dataset = IRDDataset(data_type='train', position_type=args.position_type,
+                               transforms=get_transform(train=True, base_size=base_size, var=var, mean=mean, std=std))
 
-    val_dataset = YanMianDataset(args.data_path, data_type='val',
-                                 transforms=get_transform(train=False, base_size=base_size, var=var, mean=mean,
-                                                          std=std))
+    val_dataset = IRDDataset(data_type='val', position_type=args.position_type,
+                             transforms=get_transform(train=False, base_size=base_size, var=var, mean=mean, std=std))
 
     print("Creating data loaders")
     # 将数据打乱后划分到不同的gpu上
@@ -327,17 +327,18 @@ def main(args):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__)
 
     # 训练文件的根目录(DRIVE)
     parser.add_argument('--data-path', default='./', help='dataset')
     # 训练设备类型
-    parser.add_argument('--device', default='cuda', help='device')
+    parser.add_argument('--device', default='mps', help='device')
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=2, type=int, help='num_classes')
     parser.add_argument('--base-size', default=256, type=int, help='model input size')
     parser.add_argument('--unet-bc', default=16, type=int, help='unet base channel')
+    parser.add_argument('--position_type', default='4-all', type=str, help='the position type')
+    parser.add_argument('--var', default=40, type=int, help='the variance of heatmap')
     # 每块GPU上的batch_size
     parser.add_argument('-b', '--batch-size', default=32, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
