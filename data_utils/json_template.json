@@ -1,0 +1,349 @@
+{
+    "Config": {
+        "Ambient": 0.3,
+        "CanRepeatLabel": false,
+        "Diffuse": 0.6,
+        "ExcludeFileSuffixList": "",
+        "FileTagTitle1": "",
+        "FileTagTitle2": "",
+        "FileTagTitle3": "",
+        "IsLoadDicomToVideo": false,
+        "IsSaveSrcFile": true,
+        "KEY": "",
+        "LabelSavePath": "",
+        "LandMark3DScale": 1.0,
+        "LandMarkActorScale": 1.0,
+        "PlayInterval": 100,
+        "PolyPointScale": 1.0,
+        "Record_Time": 5,
+        "RectActorScale": 1.0,
+        "SegModelPaths": null,
+        "SliceCount": 1,
+        "SliceSpacing": 1.0,
+        "Specular": 0.1,
+        "zh_CN": {
+            "Ambient": "Ambient",
+            "CanRepeatLabel": "Repeat Landmark",
+            "Diffuse": "Diffuse",
+            "ExcludeFileSuffixList": "Filter out",
+            "FileTagTitle1": "Parent Tag Name",
+            "FileTagTitle2": "Additional Tag Name",
+            "FileTagTitle3": "Child Tag Name",
+            "IsLoadDicomToVideo": "Load DICOM as Video",
+            "IsSaveSrcFile": "Save Source",
+            "KEY": "Key Code",
+            "KEY_Type": "Encryption Type",
+            "LandMark3DScale": "3D Sphere Size",
+            "LandMarkActorScale": "Landmark Size",
+            "PlayInterval": "Play Interval",
+            "PolyPointScale": "Contour Point Size",
+            "Record_Time": "Screen Recording (sec)",
+            "RectActorScale": "Box Point Size",
+            "SliceCount": "Slice Number",
+            "SliceSpacing": "Slice Spacing (mm)",
+            "Specular": "Specular"
+        }
+    },
+    "CurvePointIds": null,
+    "Curves": [
+        {
+            "Shapes": null,
+            "SliceType": 3
+        }
+    ],
+    "FileInfo": {
+        "Commit": "29fb0ab",
+        "Date": "2021/12/06-17:36:08",
+        "Depth": 3,
+        "Height": 0,
+        "Name": "",
+        "Version": "v2.6.0",
+        "Width": 0
+    },
+    "FileName": "",
+    "LabelGroup": [
+        {
+            "Childs": null,
+            "ID": 0
+        },
+        {
+            "Childs": [
+                5,
+                6
+            ],
+            "ID": 1,
+            "Type": "Landmark"
+        },
+        {
+            "Childs": [
+                7,
+                8
+            ],
+            "ID": 2,
+            "Type": "Polygon"
+        },
+        {
+            "Childs": [
+                9,
+                10,
+                11
+            ],
+            "ID": 3,
+            "Type": "Tag"
+        },
+        {
+            "Childs": [
+                12,
+                13,
+                14,
+                15
+            ],
+            "ID": 4,
+            "Type": "Tag"
+        }
+    ],
+    "Models": {
+        "AngleModel": null,
+        "BoundingBox3DLabelModel": null,
+        "BoundingBoxLabelModel": null,
+        "CircleModel": null,
+        "ColorLabelTableModel": [
+            {
+                "Color": [
+                    41,
+                    35,
+                    190,
+                    255
+                ],
+                "Desc": "keypoints",
+                "ID": 1
+            },
+            {
+                "Color": [
+                    132,
+                    225,
+                    108,
+                    255
+                ],
+                "Desc": "segRegion",
+                "ID": 2
+            },
+            {
+                "Color": [
+                    214,
+                    174,
+                    82,
+                    255
+                ],
+                "Desc": "posture",
+                "ID": 3
+            },
+            {
+                "Color": [
+                    144,
+                    73,
+                    241,
+                    255
+                ],
+                "Desc": "position",
+                "ID": 4
+            },
+            {
+                "Color": [
+                    241,
+                    187,
+                    233,
+                    255
+                ],
+                "Desc": "lP",
+                "ID": 5
+            },
+            {
+                "Color": [
+                    235,
+                    179,
+                    166,
+                    255
+                ],
+                "Desc": "rP",
+                "ID": 6
+            },
+            {
+                "Color": [
+                    219,
+                    60,
+                    135,
+                    255
+                ],
+                "Desc": "lR",
+                "ID": 7
+            },
+            {
+                "Color": [
+                    12,
+                    62,
+                    153,
+                    255
+                ],
+                "Desc": "rR",
+                "ID": 8
+            },
+            {
+                "Color": [
+                    36,
+                    94,
+                    13,
+                    255
+                ],
+                "Desc": "pp",
+                "ID": 9
+            },
+            {
+                "Color": [
+                    28,
+                    6,
+                    183,
+                    255
+                ],
+                "Desc": "sp",
+                "ID": 10
+            },
+            {
+                "Color": [
+                    71,
+                    222,
+                    179,
+                    255
+                ],
+                "Desc": "st",
+                "ID": 11
+            },
+            {
+                "Color": [
+                    18,
+                    77,
+                    200,
+                    255
+                ],
+                "Desc": "B3",
+                "ID": 12
+            },
+            {
+                "Color": [
+                    67,
+                    187,
+                    139,
+                    255
+                ],
+                "Desc": "U3",
+                "ID": 13
+            },
+            {
+                "Color": [
+                    166,
+                    31,
+                    3,
+                    255
+                ],
+                "Desc": "U5",
+                "ID": 14
+            },
+            {
+                "Color": [
+                    90,
+                    125,
+                    9,
+                    255
+                ],
+                "Desc": "Ue",
+                "ID": 15
+            }
+        ],
+        "EllipseModel": null,
+        "FrameLabelModel": {
+            "ChildFrameLabel": [
+                {
+                    "FrameCount": 0,
+                    "ItemType": 3,
+                    "Label": 9,
+                    "ViewType": 3
+                },
+                {
+                    "FrameCount": 0,
+                    "ItemType": 3,
+                    "Label": 15,
+                    "ViewType": 3
+                }
+            ],
+            "FrameLabel": [
+                {
+                    "FrameCount": 0,
+                    "ItemType": 0,
+                    "Label": 3,
+                    "ViewType": 3
+                },
+                {
+                    "FrameCount": 0,
+                    "ItemType": 0,
+                    "Label": 4,
+                    "ViewType": 3
+                }
+            ],
+            "IllnessLabel": [],
+            "StructLabel": []
+        },
+        "LabelDetailModel": null,
+        "LandMarkListModel": {
+            "Lines": null,
+            "Points": [
+                {
+                    "ImageIndex": 0,
+                    "LabelList": [
+                        {
+                            "Label": 6,
+                            "Position": null
+                        },
+                        {
+                            "Label": 5,
+                            "Position": null
+                        }
+                    ],
+                    "ViewType": 3
+                }
+            ]
+        },
+        "MaskEditRecordModel": null,
+        "MeasureModel": null,
+        "MeshModel": null,
+        "MprPositionModel": null,
+        "PolygonModel": {
+            "3": [
+                0
+            ]
+        },
+        "PolygonModel2": null,
+        "ResliceLabelModel": null
+    },
+    "Polys": [
+        {
+            "Shapes": [
+                {
+                    "FindInPolygonVal": 1,
+                    "ImageFrame": 0,
+                    "Points": null,
+                    "SliceType": 3,
+                    "labelType": 8
+                },
+                {
+                    "FindInPolygonVal": 1,
+                    "ImageFrame": 0,
+                    "Points": null,
+                    "SliceType": 3,
+                    "labelType": 7
+                }
+            ],
+            "SliceType": 3
+        }
+    ],
+    "Timeline": null
+}
