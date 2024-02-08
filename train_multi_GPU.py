@@ -143,7 +143,7 @@ def main(args):
     model = create_model(num_classes=num_classes, in_channel=3, base_c=args.unet_bc, model='unet')
     model.to(device)
 
-    if args.sync_bn:
+    if args.sync_bn and args.device != 'mps':
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     model_without_ddp = model
@@ -227,7 +227,7 @@ def main(args):
         print('')
 
         # 只在主进程上进行写操作， 将结果写入txt
-        if args.rank in [-1, 0]:
+        if not args.distributed or (args.distributed and args.rank in [-1, 0]):
             with open(results_file, "a") as f:
                 # 记录每个epoch对应的train_loss、lr以及验证集各指标
                 train_info = f"[epoch: {epoch}]    lr: {lr:.6f}\n"
@@ -274,7 +274,7 @@ def main(args):
                     print('save best dice model')
 
     # 训练结束，将最优结果写入txt
-    if args.rank in [-1, 0]:
+    if not args.distributed or (args.distributed and args.rank in [-1, 0]):
         with open(results_file, "a") as f:
             train_info = ''
             if num_classes == 2 or num_classes == 5:
@@ -349,9 +349,6 @@ if __name__ == "__main__":
                         help='number of total epochs to run')
     # 是否使用同步BN(在多个GPU之间同步)，默认不开启，开启后训练速度会变慢
     parser.add_argument('--sync_bn', type=bool, default=True, help='whether using SyncBatchNorm')
-    # 数据加载以及预处理的线程数
-    parser.add_argument('-j', '--workers', default=10, type=int, metavar='N',
-                        help='number of data loading workers (default: 4)')
     # 训练学习率，这里默认设置成0.01(使用n块GPU建议乘以n)，如果效果不好可以尝试修改学习率
     parser.add_argument('--lr', default=3e-3, type=float,
                         help='initial learning rate')
@@ -381,8 +378,10 @@ if __name__ == "__main__":
     )
 
     # 分布式进程数
-    parser.add_argument('--world-size', default=1, type=int,
-                        help='number of distributed processes')
+    parser.add_argument('--world-size', default=4, type=int, help='number of distributed processes')
+    # 数据加载以及预处理的线程数
+    parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+                        help='number of data loading workers (default: 4)')
     parser.add_argument('--dist-url', default='env://', help='url used to set up distributed training')
     # Mixed precision training parameters
     parser.add_argument("--amp", default=False, type=bool,

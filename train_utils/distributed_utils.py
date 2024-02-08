@@ -329,6 +329,9 @@ def init_distributed_mode(args):
     else:
         print('Not using distributed mode')
         args.distributed = False
+        if args.device == 'mps':
+            args.world_size = 1
+            args.workers = 1
         return
 
     args.distributed = True
