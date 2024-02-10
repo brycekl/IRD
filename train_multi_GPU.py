@@ -340,7 +340,7 @@ if __name__ == "__main__":
     parser.add_argument('--num-classes', default=2, type=int, help='num_classes')
     parser.add_argument('--base-size', default=256, type=int, help='model input size')
     parser.add_argument('--unet-bc', default=16, type=int, help='unet base channel')
-    parser.add_argument('--position_type', default='12', type=str, help='the position type')
+    parser.add_argument('--position_type', default='4-all', type=str, help='the position type')
     parser.add_argument('--var', default=40, type=int, help='the variance of heatmap')
     # 每块GPU上的batch_size
     parser.add_argument('-b', '--batch-size', default=32, type=int,
@@ -351,12 +351,12 @@ if __name__ == "__main__":
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
     # 训练的总epoch数
-    parser.add_argument('--epochs', default=3, type=int, metavar='N',
+    parser.add_argument('--epochs', default=150, type=int, metavar='N',
                         help='number of total epochs to run')
     # 是否使用同步BN(在多个GPU之间同步)，默认不开启，开启后训练速度会变慢
     parser.add_argument('--sync_bn', action='store_false', help='whether using SyncBatchNorm')
     # 训练学习率，这里默认设置成0.01(使用n块GPU建议乘以n)，如果效果不好可以尝试修改学习率
-    parser.add_argument('--lr', default=3e-3, type=float,
+    parser.add_argument('--lr', default=3e-4, type=float,
                         help='initial learning rate')
     # SGD的momentum参数
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
