@@ -32,13 +32,16 @@ def cope_json(json_path, save_path, file_name, titai=None, pair_path=None, error
         titai_info.append(frame_label['Label'])
     all_titai[file_name] = titai_info
 
-    # 检查是否有标注两个关键点
+    # 检查是否有标注两个关键点, 互换5，6的标注
     keypoints = {5: None, 6: None}
     for kp in json_data['Models']['LandMarkListModel']['Points'][0]['LabelList']:
+        kp['Label'] = 6 if kp['Label'] == 5 else 5
         keypoints[kp['Label']] = kp['Position'] if kp['Position'] is not None else None
 
     if not all(keypoints.values()):
         error_info['no_two_landmark'].append(file_name)
+    if keypoints[5][0] > keypoints[6][0]:
+        error_info['landmark_anno_error'].append(file_name)
 
     # 写入json文件
     with open(os.path.join(save_path, file_name + '.json'), 'w') as f:
@@ -52,12 +55,16 @@ def cope_mask(nii_path, save_path, file_name, binary_TF=False, pair_path=None):
     if binary_TF:
         itk_img = sitk.Cast(sitk.RescaleIntensity(itk_img), sitk.sitkUInt8)  # 转换成0-255的二值灰度图
     img_array = sitk.GetArrayFromImage(itk_img)
-    # 检查是否标注了两个区域
+
+    # 去除误标注的小区域后，检查是否标注了两个区域
     label = ndimage.label(img_array)
-    num_region = len(np.unique(label[0])) - 1
-    if num_region < 2 or num_region != label[1]:
-        if num_region == 1 and len(np.unique(img_array)) != 3:
-            error_info['no_two_region'].append(file_name)
+    label_nums = np.bincount(label[0].flat)
+    legal_region_ind = np.where(label_nums > 10)
+    legal_region = np.isin(label[0], legal_region_ind).astype(int)
+    img_array = img_array * legal_region
+
+    if len(legal_region_ind[0]) - 1 != 2 and len(np.unique(img_array)) - 1 != 2:  # 可能会有标注重合的情况
+        error_info['no_two_region'].append(file_name)
 
     # save file
     save_name = os.path.join(save_path, file_name)
@@ -90,12 +97,13 @@ if __name__ == '__main__':
     """
     used for cope the data with four position of PP posture
     """
-    root = '../../datas/IRD/data_backup/gaoya'
+    root = '../../datas/IRD/data_backup/jiang'
     img_root = '../../datas/IRD/{}/images'.format(root.split('/')[-1])
     json_root = '../../datas/IRD/{}/jsons'.format(root.split('/')[-1])
     mask_root = '../../datas/IRD/{}/masks'.format(root.split('/')[-1])
     # 错误类型：标注文件数量错误，单张图片未标注两个点，单张图片未标注两个区域，整个文件夹未标注四个position
-    error_info = {'anno_num_error': [], 'no_two_landmark': [], 'no_two_region': [], 'no_all_position': {}}
+    error_info = {'anno_num_error': [], 'no_two_landmark': [], 'no_two_region': [], 'no_all_position': {},
+                  'landmark_anno_error': []}
 
     file_name_list = os.listdir(root)
     # 对每个患者，共12个体态进行处理
