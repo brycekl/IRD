@@ -102,6 +102,7 @@ def main(args):
     base_size = args.base_size
     output_dir = args.output_dir
     var = args.var
+    position_type = args.position_type
     # args.lr = lr
 
     if output_dir:
@@ -113,10 +114,10 @@ def main(args):
     # name = output_dir.split('/')[-1]
     results_file = output_dir + '/' + "log.txt"
 
-    train_dataset = IRDDataset(data_type='train', position_type=args.position_type,
+    train_dataset = IRDDataset(data_type='train', position_type=position_type,
                                transforms=get_transform(train=True, base_size=base_size, var=var, mean=mean, std=std))
 
-    val_dataset = IRDDataset(data_type='val', position_type=args.position_type,
+    val_dataset = IRDDataset(data_type='val', position_type=position_type,
                              transforms=get_transform(train=False, base_size=base_size, var=var, mean=mean, std=std))
 
     print("Creating data loaders")
@@ -318,7 +319,7 @@ def main(args):
         plt.close()
 
         # 重命名
-        new_name = output_dir + f'_var{var}_{metrics["best_mse"]["m_mse"]:.3f}' if num_classes == 6 \
+        new_name = output_dir + f'_{position_type}_var{var}_{metrics["best_mse"]["m_mse"]:.3f}' if num_classes == 6 \
             else (output_dir + f'_{metrics["best_dice"]:.3f}' if num_classes == 4
                   else output_dir + f'_var{var}_{metrics["best_mse"]["m_mse"]:.3f}_{metrics["best_dice"]:.3f}')
         os.rename(output_dir, new_name)
@@ -332,7 +333,7 @@ if __name__ == "__main__":
     # 训练文件的根目录(DRIVE)
     parser.add_argument('--data-path', default='./', help='dataset')
     # 训练设备类型
-    parser.add_argument('--device', default='mps', help='device')
+    parser.add_argument('--device', default='cuda', help='device')
     # 检测目标类别数(不包含背景)
     parser.add_argument('--num-classes', default=2, type=int, help='num_classes')
     parser.add_argument('--base-size', default=256, type=int, help='model input size')
@@ -342,6 +343,9 @@ if __name__ == "__main__":
     # 每块GPU上的batch_size
     parser.add_argument('-b', '--batch-size', default=32, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
+    # 文件保存地址
+    parser.add_argument('--output-dir', default='./model/unet_keypoint', help='path where to save')
+
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
     # 训练的总epoch数
@@ -364,9 +368,7 @@ if __name__ == "__main__":
     parser.add_argument('--save-best', default=True, type=bool, help='only save best weights')
     # 训练过程打印信息的频率
     parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
-    # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/unet_keypoint_lr',
-                        help='path where to save')
+
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     # 不训练，仅测试
@@ -394,4 +396,8 @@ if __name__ == "__main__":
     #     mkdir(args.output_dir)
 
     main(args)
+    # CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=12
+    # CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=13
+    # CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=14
+    # CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=15
     # CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py
