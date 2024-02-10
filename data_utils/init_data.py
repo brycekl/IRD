@@ -13,9 +13,9 @@ random.seed(2024)
 def generate_json():
     root = '../../datas/IRD/COCO_style/jsons'
     save_json = {'12': [], '13': [], '14': [], '15': [], '4-all': [], 'all': []}
-    json_files = os.listdir(root)
+    json_files = [item.split('.json')[0] for item in os.listdir(root)]
     for json_file in json_files:
-        json_path = os.path.join(root, json_file)
+        json_path = os.path.join(root, json_file + '.json')
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         data_posture = [str(item['Label']) for item in data['Models']['FrameLabelModel']['ChildFrameLabel']]
