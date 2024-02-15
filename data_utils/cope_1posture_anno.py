@@ -3,11 +3,11 @@ import glob
 import json
 import SimpleITK as sitk
 import shutil
-import cv2
 import numpy as np
 
 from cope_raw_anno import tar_extract, cope_img
 from scipy import ndimage
+import cv2
 
 
 def cope_json(json_path, save_path, file_name, titai=None, pair_path=None, error_info=None, all_titai=None):
@@ -46,6 +46,11 @@ def cope_json(json_path, save_path, file_name, titai=None, pair_path=None, error
     # 写入json文件
     with open(os.path.join(save_path, file_name + '.json'), 'w') as f:
         json.dump(json_data, f)
+    if pair_path:
+        if not os.path.exists(pair_path):
+            os.makedirs(pair_path)
+        with open(os.path.join(pair_path, file_name + '_png_Label.json'), 'w') as f:
+            json.dump(json_data, f)
 
 
 def cope_mask(nii_path, save_path, file_name, binary_TF=False, pair_path=None):
@@ -68,12 +73,12 @@ def cope_mask(nii_path, save_path, file_name, binary_TF=False, pair_path=None):
 
     # save file
     save_name = os.path.join(save_path, file_name)
-    save_name = save_name + '_255.jpg' if binary_TF else save_name + '.jpg'
+    save_name = save_name + '_255.png' if binary_TF else save_name + '.png'
     cv2.imwrite(save_name, img_array)
     if pair_path:
         if not os.path.exists(pair_path):
             os.makedirs(pair_path)
-        shutil.copy(nii_path, os.path.join(pair_path, file_name) + '_jpg_Label.nii.gz')
+        shutil.copy(nii_path, os.path.join(pair_path, file_name) + '_png_Label.nii.gz')
 
 
 def check_titai(all_titai):
@@ -101,6 +106,7 @@ if __name__ == '__main__':
     img_root = '../../datas/IRD/{}/images'.format(root.split('/')[-1])
     json_root = '../../datas/IRD/{}/jsons'.format(root.split('/')[-1])
     mask_root = '../../datas/IRD/{}/masks'.format(root.split('/')[-1])
+    pair_root = '../../datas/IRD/{}/pair_files'.format(root.split('/')[-1])
     # 错误类型：标注文件数量错误，单张图片未标注两个点，单张图片未标注两个区域，整个文件夹未标注四个position
     error_info = {'anno_num_error': [], 'no_two_landmark': [], 'no_two_region': [], 'no_all_position': {},
                   'landmark_anno_error': []}
@@ -134,9 +140,9 @@ if __name__ == '__main__':
             if len(json_file) != 1 and len(mask_file) != 1:
                 error_info['anno_num_error'].append(final_name)
                 continue
-            cope_img(os.path.join(dir_path, image_name), img_root, final_name, ext)
-            cope_mask(mask_file[0], mask_root, final_name, binary_TF=True)
-            cope_json(json_file[0], json_root, final_name, error_info=error_info, all_titai=all_titai)
+            cope_img(os.path.join(dir_path, image_name), img_root, final_name, ext, pair_path=pair_root)
+            cope_mask(mask_file[0], mask_root, final_name, binary_TF=True, pair_path=pair_root)
+            cope_json(json_file[0], json_root, final_name, error_info=error_info, all_titai=all_titai, pair_path=pair_root)
         no_exist = check_titai(all_titai)
         if no_exist:
             error_info['no_all_position'][dir_name] = no_exist

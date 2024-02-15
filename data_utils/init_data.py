@@ -48,7 +48,7 @@ def compute_mean_std(img_root, data_list):
     height_max, height_min = 0, 10000
     width_max, width_min = 0, 10000
     for item in data_list:
-        img_path = os.path.join(img_root, os.path.basename(item).split('.json')[0] + '.jpg')
+        img_path = os.path.join(img_root, os.path.basename(item).split('.json')[0] + '.png')
         img = Image.open(img_path)
         if img_channels == 1: img.convert('L')
         elif img_channels == 3: img.convert('RGB')

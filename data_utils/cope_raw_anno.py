@@ -36,12 +36,12 @@ def get_titai(file_name, titai):
 def cope_img(file_path, save_path, file_name, ext, pair_path=None):
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-    shutil.copyfile(file_path, os.path.join(save_path, file_name) + '.jpg')
+    shutil.copyfile(file_path, os.path.join(save_path, file_name) + '.png')
     # save to pair path
     if pair_path:
         if not os.path.exists(pair_path):
             os.makedirs(pair_path)
-        shutil.copyfile(file_path, os.path.join(save_path, file_name) + '.jpg')
+        shutil.copyfile(file_path, os.path.join(pair_path, file_name) + '.png')
 
 
 def cope_json(json_path, save_path, file_name, titai, pair_path=None, error_info=None, all_titai=None):
@@ -63,10 +63,10 @@ def cope_json(json_path, save_path, file_name, titai, pair_path=None, error_info
         json_template = json.load(json_)
 
     # 更改文件信息
-    json_data['FileInfo']['Name'] = file_name + '.jpg'
+    json_data['FileInfo']['Name'] = file_name + '.png'
     json_data['FileInfo']['Version'] = "v2.6.0"
     json_template['FileInfo'] = json_data['FileInfo']
-    json_template['FileName'] = file_name + '_jpg'
+    json_template['FileName'] = file_name + '_png'
 
     # 老版标注，titai存在
     if titai and not ('FrameLabelModel' in json_data['Models'] and json_data['Models']['FrameLabelModel'] is not None):
@@ -143,7 +143,7 @@ def cope_json(json_path, save_path, file_name, titai, pair_path=None, error_info
     if pair_path:
         if not os.path.exists(pair_path):
             os.makedirs(pair_path)
-        with open(os.path.join(pair_path, file_name + '_jpg_Label.json'), 'w') as f:
+        with open(os.path.join(pair_path, file_name + '_png_Label.json'), 'w') as f:
             json.dump(json_template, f)
 
 
@@ -157,12 +157,12 @@ def cope_mask(nii_path, save_path, file_name, binary_TF=False, pair_path=None):
     # 二值化后，img_array的取值为0和255；
     # 未二值化前，img_array的取值为0、45和46（其中45和46分别为图中两种不同标签标签的类别id值）。
     save_name = os.path.join(save_path, file_name)
-    save_name = save_name + '_255.jpg' if binary_TF else save_name + '.jpg'
+    save_name = save_name + '_255.png' if binary_TF else save_name + '.png'
     cv2.imwrite(save_name, img_array)
     if pair_path:
         if not os.path.exists(pair_path):
             os.makedirs(pair_path)
-        shutil.copy(nii_path, os.path.join(pair_path, file_name) + '_jpg_Label.nii.gz')
+        shutil.copy(nii_path, os.path.join(pair_path, file_name) + '_png_Label.nii.gz')
 
 
 def check_all_titai(all_titai, error_info):
@@ -198,11 +198,11 @@ def check_all_titai(all_titai, error_info):
 
 
 if __name__ == '__main__':
-    root = '../datas/data_backup/230806_1_15'
-    img_root = '../datas/{}/images'.format(root.split('/')[-1])
-    json_root = '../datas/{}/jsons'.format(root.split('/')[-1])
-    mask_root = '../datas/{}/masks'.format(root.split('/')[-1])
-    pair_path = '../datas/{}/pair_files'.format(root.split('/')[-1])
+    root = '../../datas/IRD/data_backup/old-12/COCO_style'
+    img_root = '../../datas/IRD/{}/images'.format(root.split('/')[-1])
+    json_root = '../../datas/IRD/{}/jsons'.format(root.split('/')[-1])
+    mask_root = '../../datas/IRD/{}/masks'.format(root.split('/')[-1])
+    pair_path = '../../datas/IRD/{}/pair_files'.format(root.split('/')[-1])
     # 标注错误，如：老标注格式没有体态信息，没有完全标注所有信息，标注错误左边大大于右边，
     error_info = {'old_ann_no_pos': [], 'no_full_anno': [], 'ann_error': []}
 
@@ -215,7 +215,7 @@ if __name__ == '__main__':
         for temp in os.listdir(dir_path):
             ext = temp.split('.')[-1]
             if ext in ['jpg', 'png', 'JPG', 'PNG']:
-                if len(glob.glob(os.path.join(dir_path, temp.split('.')[0] + '*.tar'))) == 1:
+                if len(glob.glob(os.path.join(dir_path, temp.split('.')[0] + '_*.tar'))) == 1:
                     images.append(temp)
             if ext in ['tar']:
                 # 判断医生是否在文件名上注明了体态
@@ -239,8 +239,8 @@ if __name__ == '__main__':
             cope_img(os.path.join(dir_path, image_name), img_root, final_name, ext, pair_path=pair_path)
             json_titai = None if base_name not in titai else titai[base_name]
             cope_json(json_file[0], json_root, final_name, json_titai, pair_path=pair_path, error_info=error_info, all_titai=all_titai)
-            cope_mask(mask_file[0], mask_root, final_name, pair_path=pair_path)
-            cope_mask(mask_file[0], mask_root, final_name, binary_TF=True)
+            cope_mask(mask_file[0], mask_root, final_name, binary_TF=True, pair_path=pair_path)
+            # cope_mask(mask_file[0], mask_root, final_name, binary_TF=True)
         check_all_titai(all_titai, error_info)   # 检查该文件夹是否有12个体态
     for i, j in error_info.items():
         if i == 'no_full_anno' and len(j) > 0:
