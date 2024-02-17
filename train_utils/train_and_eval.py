@@ -8,38 +8,39 @@ import train_utils.distributed_utils as utils
 from .dice_coefficient_loss import dice_loss
 
 
-def criterion(inputs, target, num_classes: int = 2, ignore_index: int = -100, weight=1):
+def criterion(inputs, target, task: str = 'landmark', ignore_index: int = -100, weight=1):
     losses = {'mse_loss': 0., 'dice_loss': 0.}
 
     # 忽略target中值为255的像素，255的像素是目标边缘或者padding填充
     # 交叉熵损失：在通道方向softmax后，根据x的值计算
-    if num_classes == 2:
-        # 设置cross_entropy中背景和前景的loss权重(根据自己的数据集进行设置)
-        # 类别越少，为了平衡，可以设置更大的权重
-        loss_weight = torch.as_tensor([1.0, 2.0], device=target.device)
-    elif num_classes == 3:
-        temp_index = [torch.where(target == i) for i in range(5)]
-        index_total = target.shape[0] * target.shape[1] * target.shape[2]
-        loss_weight = torch.as_tensor([index_total / (i[0].shape[0]) for i in temp_index])
-        loss_weight = [float(i / loss_weight.max()) for i in loss_weight]  #
-        loss_weight = torch.as_tensor(loss_weight, device=target.device)
-    else:
-        loss_weight = None
+    # if num_classes == 2:
+    #     # 设置cross_entropy中背景和前景的loss权重(根据自己的数据集进行设置)
+    #     # 类别越少，为了平衡，可以设置更大的权重
+    #     loss_weight = torch.as_tensor([1.0, 2.0], device=target.device)
+    # elif num_classes == 3:
+    #     temp_index = [torch.where(target == i) for i in range(5)]
+    #     index_total = target.shape[0] * target.shape[1] * target.shape[2]
+    #     loss_weight = torch.as_tensor([index_total / (i[0].shape[0]) for i in temp_index])
+    #     loss_weight = [float(i / loss_weight.max()) for i in loss_weight]  #
+    #     loss_weight = torch.as_tensor(loss_weight, device=target.device)
+    # else:
+    #     loss_weight = None
     # loss = nn.functional.cross_entropy(x, target, ignore_index=ignore_index, weight=loss_weight)  # 函数式API
 
-    if num_classes == 3 or num_classes == 5:
+    if task in ['poly', 'all']:
         # 针对每个类别，背景，前景都需要计算他的dice系数
         # 根据gt构建每个类别的矩阵
         # dice_target = build_target(target, num_classes, ignore_index)  # B * C* H * W
         # 计算两区域和两曲线的dice
-        class_index = 0 if num_classes == 3 else 2
-        losses['dice_loss'] += (dice_loss(inputs[:, class_index:, :], target[:, class_index:, :], multiclass=True,
+        losses['dice_loss'] += (dice_loss(inputs[:, :2, :], target[:, :2, :], multiclass=True,
                                           ignore_index=ignore_index))
-    if num_classes == 2 or num_classes == 5:
+    if task in ['landmark', 'all']:
+        pre = inputs[:, -2:, :]
+        target_ = target[:, -2:, :]
         if ignore_index > 0:
-            roi_mask = torch.ne(target[:, :2, :], ignore_index)
-            pre = inputs[:, :2, :][roi_mask]
-            target_ = target[:, :2, :][roi_mask]
+            roi_mask = torch.ne(target_, ignore_index)
+            pre = pre[roi_mask]
+            target_ = target_[roi_mask]
         losses['mse_loss'] += nn.functional.mse_loss(pre, target_) * weight
         # 总的损失为： 整幅图像的交叉熵损失和所有类别的dice损失之和
     return losses
@@ -47,6 +48,7 @@ def criterion(inputs, target, num_classes: int = 2, ignore_index: int = -100, we
 
 def evaluate(model, data_loader, device, num_classes, weight=1):
     model.eval()
+    task = data_loader.dataset.task
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Test:'
     loss = {'dice_loss': 0, 'mse_loss': 0}
@@ -70,7 +72,7 @@ def evaluate(model, data_loader, device, num_classes, weight=1):
 
             # 计算 loss 和 metric
             # 点定位计算mse loss 和 mse 的metric； 分割计算dice
-            if num_classes == 2 or num_classes == 5:
+            if task in ['landmark', 'all']:
                 mask = target['mask'].to(output.device)
                 roi_mask = torch.ne(mask[:, :2, :], 255)
                 pre = output[:, :2, :][roi_mask]
@@ -82,14 +84,12 @@ def evaluate(model, data_loader, device, num_classes, weight=1):
                     y, x = np.where(data == data.max())
                     point = target['landmark'][0][i + 5]  # label=i+8
                     mse[i + 5].append(math.sqrt(math.pow(x[0] - point[0], 2) + math.pow(y[0] - point[1], 2)))
-            if num_classes == 5:
-                loss['dice_loss'] += (dice_loss(output[:, 2:, :], mask[:, 2:, :], multiclass=True, ignore_index=255))
-            if num_classes == 3:
-                loss['dice_loss'] += (dice_loss(output, mask, multiclass=True, ignore_index=255))
+            if task in ['poly', 'all']:
+                loss['dice_loss'] += (dice_loss(output[:, -2:, :], mask[:, -2:, :], multiclass=True, ignore_index=255))
 
     loss = {i: j / len(data_loader) for i, j in loss.items()}
     m_mse = []
-    if num_classes == 2 or num_classes == 5:
+    if task in ['landmark', 'all']:
         m_mse = {i: np.average(j) for i, j in mse.items()}
         for i in m_mse:
             print(f'{i} : {m_mse[i]:.3f}')
@@ -103,6 +103,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, num_classes, l
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
+    task = data_loader.dataset.task
 
     # 每次遍历一个iteration
     for image, target in metric_logger.log_every(data_loader, print_freq, header):
@@ -113,7 +114,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, num_classes, l
             output = model(image)
             assert num_classes == output.shape[1]
             # 计算损失
-            loss = criterion(output, mask, num_classes=num_classes, ignore_index=255, weight=weight)
+            loss = criterion(output, mask, task=task, ignore_index=255, weight=weight)
 
             # # 使用dsntnn计算loss
             # # landmark 的target [B, C, 2(x, y)]
@@ -144,15 +145,15 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, num_classes, l
 
         lr = optimizer.param_groups[0]["lr"]
         metric_logger.update(lr=lr)
-        if num_classes == 2 or num_classes == 5:
+        if task in ['landmark', 'all']:
             metric_logger.update(mse_loss=loss['mse_loss'].item())
-        if num_classes == 3 or num_classes == 5:
+        if task in ['poly', 'all']:
             metric_logger.update(dice_loss=loss['dice_loss'].item())
 
     return_loss = {}
-    if num_classes == 2 or num_classes == 5:
+    if task in ['landmark', 'all']:
         return_loss['mse_loss'] = metric_logger.meters["mse_loss"].global_avg
-    if num_classes == 3 or num_classes == 5:
+    if task in ['poly', 'all']:
         return_loss['dice_loss'] = metric_logger.meters["dice_loss"].global_avg
     return return_loss, lr
 

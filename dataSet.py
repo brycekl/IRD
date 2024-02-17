@@ -18,12 +18,13 @@ seg_label = {'left': 8, 'right': 7}
 
 
 class IRDDataset(Dataset):
-    def __init__(self, data_type: str = 'train', position_type='4-all', transforms=None, ki=-1, k=5):
+    def __init__(self, data_type: str = 'train', position_type='4-all', task='landmark', transforms=None, ki=-1, k=5):
         assert data_type in ['train', 'val', 'test'], "data_type must be in ['train', 'val', 'test']"
         self.data_root = '../datas/IRD/COCO_style'
         self.transforms = transforms
         self.data_type = data_type
         self.position_type = position_type
+        self.task = task
         self.run_env = '/' if '/data/lk' in os.getcwd() else '\\'
         self.wrong = {'landmark': []}
         self.legal_wrong = {'landmark': []}
@@ -76,7 +77,7 @@ class IRDDataset(Dataset):
         poly_mask = Image.open(mask_path)
 
         target = {'landmark': landmark, 'poly_mask': poly_mask, 'data_type': self.data_type, 'img_name': base_name,
-                  'origin_landmark': landmark, 'transforms': []}
+                  'origin_landmark': landmark, 'transforms': [], 'h_flip': False}
 
         check_data(target, base_name, self.wrong, self.legal_wrong)
         if self.transforms is not None:
@@ -89,9 +90,10 @@ class IRDDataset(Dataset):
         images, targets = list(zip(*batch))  # batch里每个元素表示一张图片和一个gt
         batched_imgs = cat_list(images, fill_value=0)  # 统一batch的图片大小
         mask = [i['mask'] for i in targets]
-        batched_targets = {'landmark': [i['landmark'] for i in targets]}
-        batched_targets['img_name'] = [i['img_name'] for i in targets]
-        batched_targets['mask'] = cat_list(mask, fill_value=255)
+        batched_targets = {'mask': cat_list(mask, fill_value=255)}
+        for item in targets[0]:
+            if item not in ['mask']:
+                batched_targets[item] = [i[item] for i in targets]
         return batched_imgs, batched_targets
 
 

@@ -74,7 +74,6 @@ class RandomHorizontalFlip(object):
         self.flip_prob = flip_prob
 
     def __call__(self, image, target):
-        target['h_flip'] = False
         if random.random() < self.flip_prob:
             image = F.hflip(image)
             target['poly_mask'] = F.hflip(target['poly_mask'])

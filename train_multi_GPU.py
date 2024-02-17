@@ -100,7 +100,9 @@ def main(args):
         std = json_list['train_info']['std']
 
     # name = 'lr_' + str(lr)
-    num_classes = args.num_classes
+    task = args.task
+    assert task in ['landmark', 'poly', 'all'], "task must in ['landmark', 'poly', 'all']"
+    num_classes = 2 if task in ['landmark', 'poly'] else 4
     base_size = args.base_size
     output_dir = args.output_dir
     var = args.var
@@ -116,12 +118,12 @@ def main(args):
     # name = output_dir.split('/')[-1]
     results_file = output_dir + '/' + "log.txt"
 
-    train_dataset = IRDDataset(data_type='train', position_type=position_type,
-                               transforms=get_transform(train=True, base_size=base_size, task=args.task,
+    train_dataset = IRDDataset(data_type='train', position_type=position_type, task=task,
+                               transforms=get_transform(train=True, base_size=base_size, task=task,
                                                         var=var, max_value=args.max_value, mean=mean, std=std))
 
-    val_dataset = IRDDataset(data_type='val', position_type=position_type,
-                             transforms=get_transform(train=False, base_size=base_size, task=args.task,
+    val_dataset = IRDDataset(data_type='val', position_type=position_type, task=task,
+                             transforms=get_transform(train=False, base_size=base_size, task=task,
                                                       var=var, max_value=args.max_value, mean=mean, std=std))
 
     print("Creating data loaders")
@@ -211,7 +213,7 @@ def main(args):
         val_loss, val_mse = evaluate(model, val_data_loader, device=device, num_classes=num_classes)
 
         # 根据验证结果，求得平均指标，并判断是否需要保存模型
-        if num_classes == 2 or num_classes == 5:
+        if task in ['landmark', 'all']:
             val_mean_mse = np.average(list(val_mse['mse_classes'].values()))
             if val_mean_mse < metrics['best_mse']['m_mse']:
                 metrics['best_mse']['m_mse'] = val_mean_mse
@@ -221,7 +223,7 @@ def main(args):
                 for ind, c_mse in val_mse['mse_classes'].items():
                     metrics['best_mse'][ind] = round(c_mse, 3)
             print(f'best_mse:{metrics["best_mse"]["m_mse"]:.3f}    ', end='  ')
-        if num_classes == 3 or num_classes == 5:
+        if task in ['poly', 'all']:
             val_dice = float(1 - val_loss['dice_loss'])
             if val_dice > metrics['best_dice']:
                 save_model['save_dice'] = True
@@ -237,7 +239,7 @@ def main(args):
                 # 记录每个epoch对应的train_loss、lr以及验证集各指标
                 train_info = f"[epoch: {epoch}]    lr: {lr:.6f}\n"
                 # tr_writer.add_scalar('learning rate', lr, epoch)
-                if num_classes == 3 or num_classes == 5:
+                if task in ['poly', 'all']:
                     train_info += f"t_dice_loss: {mean_loss['dice_loss']:.4f}    " \
                                   f"v_dice_loss: {val_loss['dice_loss']:.4f}    "
                     losses['train_losses']['dice_loss'].append(round(float(mean_loss['dice_loss']), 3))
@@ -247,7 +249,7 @@ def main(args):
                     # val_writer.add_scalar('dice_loss', val_loss['dice_loss'], epoch)
                     # val_writer.add_scalar('val_dice', val_dice, epoch)
 
-                if num_classes == 2 or num_classes == 5:
+                if task in ['landmark', 'all']:
                     train_info += f"t_mse_loss: {mean_loss['mse_loss']:.4f}    " \
                                   f"v_mse_loss:{val_loss['mse_loss']:.4f}\n" \
                                   f"mse:{[round(val_mse['mse_classes'][i], 3) for i in range(5, 7)]}\n" \
@@ -282,14 +284,14 @@ def main(args):
     if not args.distributed or (args.distributed and args.rank in [-1, 0]):
         with open(results_file, "a") as f:
             train_info = ''
-            if num_classes == 2 or num_classes == 5:
+            if task in ['landmark', 'all']:
                 train_info += f"[best mse: {metrics['best_mse']['m_mse']:.4f}]     " \
                               f"mse:{[metrics['best_mse'][i] for i in range(5, 7)]}\n"
                 train_info += f'epoch:mse    '
                 for ep, va in metrics['best_epoch_mse'].items():
                     train_info += f"{ep}:{va}    "
                 train_info += f'\n'
-            if num_classes == 3 or num_classes == 5:
+            if task in ['poly', 'all']:
                 train_info += f"[best dice: {metrics['best_dice']:.4f}]\n"
                 for ep, va in metrics['best_epoch_dice'].items():
                     train_info += f"{ep}:{va}    "
@@ -305,18 +307,18 @@ def main(args):
         # 最后的作图 loss， metric图，以及文件夹重命名
         skip_epoch = 1  # 前面训练不稳定，作图跳过的epoch数
         assert skip_epoch >= 0 and skip_epoch <= args.epochs
-        if num_classes == 2 or num_classes == 5:
+        if task in ['landmark', 'all']:
             plt.plot(losses['train_losses']['mse_loss'][skip_epoch:], 'r', label='train_loss')
             plt.plot(losses['val_losses']['mse_loss'][skip_epoch:], 'g', label='val_loss')
-        if num_classes == 3 or num_classes == 5:
+        if task in ['poly', 'all']:
             plt.plot(losses['train_losses']['dice_loss'][skip_epoch:], 'r', label='train_loss')
             plt.plot(losses['val_losses']['dice_loss'][skip_epoch:], 'g', label='val_loss')
         plt.legend()
         plt.savefig(output_dir + '/' + "loss.png")
         plt.close()
-        if num_classes == 2 or num_classes == 5:
+        if task in ['landmark', 'all']:
             plt.plot(metrics['mse'][skip_epoch:], 'g', label='mse')
-        if num_classes == 3 or num_classes == 5:
+        if task in ['poly', 'all']:
             plt.plot(metrics['dice'][skip_epoch:], 'b', label='dice')
         plt.legend()
         plt.savefig(output_dir + '/' + "metric.png")
@@ -341,12 +343,12 @@ if __name__ == "__main__":
     # 训练设备类型
     parser.add_argument('--device', default='cuda', help='device')
     # 检测目标类别数(不包含背景)
-    parser.add_argument('--num-classes', default=2, type=int, help='num_classes')
+    # parser.add_argument('--num-classes', default=2, type=int, help='num_classes')
     parser.add_argument('--base-size', default=256, type=int, help='model input size')
     parser.add_argument('--unet-bc', default=16, type=int, help='unet base channel')
-    parser.add_argument('--position_type', default='4-all', type=str, help='the position type')
+    parser.add_argument('--position_type', default='12', type=str, help='the position type')
 
-    parser.add_argument('--task', default='landmark', type=str, help='[landmark, poly, all]')
+    parser.add_argument('--task', default='all', type=str, help='[landmark, poly, all]')
     parser.add_argument('--var', default=40, type=int, help='the variance of heatmap')
     parser.add_argument('--max_value', default=8, type=int, help='the max value of heatmap')
     # 每块GPU上的batch_size
