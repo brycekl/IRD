@@ -14,7 +14,8 @@ from train_utils import train_one_epoch, evaluate, create_lr_scheduler, init_dis
 
 
 class SegmentationPresetTrain:
-    def __init__(self, base_size, var=40, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+    def __init__(self, base_size, task='landmark', var=40,  max_value=8,
+                 mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
         min_size = int(0.8 * base_size)
         max_size = int(1 * base_size)
 
@@ -30,7 +31,7 @@ class SegmentationPresetTrain:
             T.RandomHorizontalFlip(0.5),
             T.RandomVerticalFlip(0.5),
             # T.RandomRotation(10, rotate_ratio=0.7, expand_ratio=0.7),
-            T.GenerateHeatmap(var=var),
+            T.GenerateMask(task=task, var=var, max_value=max_value),
             T.ToTensor(),
             T.Normalize(mean=mean, std=std),
             T.MyPad([base_size])
@@ -43,10 +44,11 @@ class SegmentationPresetTrain:
 
 
 class SegmentationPresetEval:
-    def __init__(self, base_size, var=40, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+    def __init__(self, base_size, task='landmark', var=40,  max_value=8,
+                 mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
         self.transforms = T.Compose([
             T.Resize([base_size]),
-            T.GenerateHeatmap(var=var),
+            T.GenerateMask(task=task, var=var, max_value=max_value),
             T.ToTensor(),
             T.Normalize(mean=mean, std=std),
             T.MyPad([base_size])
@@ -56,11 +58,11 @@ class SegmentationPresetEval:
         return self.transforms(img, target)
 
 
-def get_transform(train, base_size=256, var=40, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+def get_transform(train, base_size=256, task='landmark', var=40, max_value=8, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
     if train:
-        return SegmentationPresetTrain(base_size, var, mean=mean, std=std)
+        return SegmentationPresetTrain(base_size, task, var, max_value, mean=mean, std=std)
     else:
-        return SegmentationPresetEval(base_size, var, mean=mean, std=std)
+        return SegmentationPresetEval(base_size, task, var, max_value, mean=mean, std=std)
 
 
 def create_model(num_classes, num_classes_2=0, in_channel=3, base_c=32, model='unet'):
@@ -115,10 +117,12 @@ def main(args):
     results_file = output_dir + '/' + "log.txt"
 
     train_dataset = IRDDataset(data_type='train', position_type=position_type,
-                               transforms=get_transform(train=True, base_size=base_size, var=var, mean=mean, std=std))
+                               transforms=get_transform(train=True, base_size=base_size, task=args.task,
+                                                        var=var, max_value=args.max_value, mean=mean, std=std))
 
     val_dataset = IRDDataset(data_type='val', position_type=position_type,
-                             transforms=get_transform(train=False, base_size=base_size, var=var, mean=mean, std=std))
+                             transforms=get_transform(train=False, base_size=base_size, task=args.task,
+                                                      var=var, max_value=args.max_value, mean=mean, std=std))
 
     print("Creating data loaders")
     # 将数据打乱后划分到不同的gpu上
@@ -341,7 +345,10 @@ if __name__ == "__main__":
     parser.add_argument('--base-size', default=256, type=int, help='model input size')
     parser.add_argument('--unet-bc', default=16, type=int, help='unet base channel')
     parser.add_argument('--position_type', default='4-all', type=str, help='the position type')
+
+    parser.add_argument('--task', default='landmark', type=str, help='[landmark, poly, all]')
     parser.add_argument('--var', default=40, type=int, help='the variance of heatmap')
+    parser.add_argument('--max_value', default=8, type=int, help='the max value of heatmap')
     # 每块GPU上的batch_size
     parser.add_argument('-b', '--batch-size', default=32, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')

@@ -7,6 +7,7 @@ import torch
 from PIL import Image
 from torchvision import transforms as T
 from torchvision.transforms import functional as F
+from scipy import ndimage
 
 
 def pad_if_smaller(img, size, fill=0):
@@ -61,6 +62,8 @@ class RandomResize(object):
         # image = F.resize(image, [int(oh * ratio), int(ow * ratio)])
         image = image.resize([int(ow * ratio), int(oh * ratio)])
         target['landmark'] = {i: [j[0] * ratio, j[1] * ratio] for i, j in target['landmark'].items()}
+        target['poly_mask'] = target['poly_mask'].resize([int(ow * ratio), int(oh * ratio)], resample=Image.NEAREST)
+        target['transforms'].append('RandomResize')
         target['resize_ratio'] = ratio
 
         return image, target
@@ -71,10 +74,14 @@ class RandomHorizontalFlip(object):
         self.flip_prob = flip_prob
 
     def __call__(self, image, target):
+        target['h_flip'] = False
         if random.random() < self.flip_prob:
             image = F.hflip(image)
+            target['poly_mask'] = F.hflip(target['poly_mask'])
             w, h = image.size
             target['landmark'] = {i: [w - j[0], j[1]] for i, j in target['landmark'].items()}
+            target['transforms'].append('RandomHorizontalFlip')
+            target['h_flip'] = True
         return image, target
 
 
@@ -85,8 +92,10 @@ class RandomVerticalFlip(object):
     def __call__(self, image, target):
         if random.random() < self.flip_prob:
             image = F.vflip(image)
+            target['poly_mask'] = F.vflip(target['poly_mask'])
             w, h = image.size
             target['landmark'] = {i: [j[0], h - j[1]] for i, j in target['landmark'].items()}
+            target['transforms'].append('RandomVerticalFlip')
         return image, target
 
 
@@ -365,28 +374,82 @@ class Resize(object):
         ow, oh = image.size
         ratio = self.size / max(ow, oh)
         # image = F.resize(image, [int(oh * ratio), int(ow * ratio)])
-        # todo 两次resize的选择
         image = image.resize([int(ow * ratio), int(oh * ratio)])
         target['landmark'] = {i: [j[0] * ratio, j[1] * ratio] for i, j in target['landmark'].items()}
+        target['poly_mask'] = target['poly_mask'].resize([int(ow * ratio), int(oh * ratio)], resample=Image.NEAREST)
+        target['transforms'].append('Resize')
+        target['resize_ratio'] = ratio
 
         return image, target
 
 
-class GenerateHeatmap(object):
-    def __init__(self, var=40, max_value=8):
+class GenerateMask(object):
+    def __init__(self, var=40, task='landmark', max_value=8):
         self.var = var
         self.max_value = max_value
+        self.task = task
 
     def __call__(self, img, target):
-        # 生成mask, landmark的误差在int()处
-        landmark = {i: [int(target['landmark'][i][0]+0.5), int(target['landmark'][i][1]+0.5)] for i in target['landmark']}
-        mask = torch.zeros((2, *img.size[::-1]), dtype=torch.float)
-        # 根据landmark 绘制高斯热图 （进行点分割）
-        for label in landmark:
-            point = landmark[label]
-            temp_heatmap = self.__make_2d_heatmap(point, img.size[::-1], var=self.var, max_value=self.max_value)
-            mask[label - 5] = temp_heatmap
+        # generate mask according to the task type
+        num_c = 2 if self.task in ['landmark', 'poly'] else 4
+        mask = torch.zeros((num_c, *img.size[::-1]), dtype=torch.float)
+        # generate landmark mask
+        if self.task in ['landmark', 'all']:
+            landmark_mask = torch.zeros((2, *img.size[::-1]), dtype=torch.float)
+            # 生成landmark, landmark的误差在int()处
+            landmark = {i: [int(target['landmark'][i][0] + 0.5), int(target['landmark'][i][1] + 0.5)] for i in
+                        target['landmark']}
+            # 根据landmark 绘制高斯热图 （进行点分割）
+            for label in landmark:
+                point = landmark[label]
+                temp_heatmap = self.__make_2d_heatmap(point, img.size[::-1], var=self.var, max_value=self.max_value)
+                landmark_mask[label - 5] = temp_heatmap
+            mask[:2, :, :] = landmark_mask
+        # generate poly mask, to avoid anno mistakes, check the annotation data
+        if self.task in ['poly', 'all']:
+            poly_mask = torch.zeros((2, *img.size[::-1]), dtype=torch.float)
+            cope_mask = np.asarray(target['poly_mask'])
+            # 共有两种合格格式，
+            # 不直接用233/255判断，怕医生标错区域
+            # 使用label检查是否为两个区域, 若是，使用重心判断左右
+            # 若不是，判断是否为233，255，只保留233/255中，最大的区域
+            label = ndimage.label(cope_mask)
+            # two region
+            if label[1] == 2:
+                left = 1 if np.median(np.where(label[0] == 1)[1]) < np.median(np.where(label[0] == 2)[1]) else 2
+                right = 2 if left == 1 else 1
+                if target['h_flip']: left, right = right, left
+                poly_mask[0][label[0] == left] = 1
+                poly_mask[1][label[0] == right] = 1
+            # one or more region of poly
+            else:
+                label_ = np.zeros_like(label[0])
+                mask_value = np.unique(cope_mask)
+                if len(mask_value) == 3:
+                    # just save the biggest region
+                    for value in mask_value[1:]:
+                        value_mask = cope_mask == value
+                        value_label = ndimage.label(value_mask)
+                        if value_label[1] > 1:
+                            biggest_region = value_label[0] == np.argmax(np.bincount(value_label[0].flat)[1:]) + 1
+                            label_[biggest_region] = label_.max() + 1
+                        else:
+                            label_[value_label[0].astype(np.bool_)] = label_.max() + 1
+                    # save result in poly_mask
+                    left = 1 if np.median(np.where(label_ == 1)[1]) < np.median(np.where(label_ == 2)[1]) else 2
+                    right = 2 if left == 1 else 1
+                    if target['h_flip']: left, right = right, left
+                    poly_mask[0][label_ == left] = 1
+                    poly_mask[1][label_ == right] = 1
+                else:
+                    assert 'poly mask annotation error, do not anno suitable regions', target['img_name']
+
+            # label = np.zeros_like(cope_mask)
+            # label[cope_mask == 223] = 1
+            # label[cope_mask == 255] = 2
+            mask[-2:, :, :] = poly_mask
         target['mask'] = mask
+        target['transforms'].append('GenerateHeatmap')
         return img, target
 
     def __make_2d_heatmap(self, landmark, size, max_value=None, var=5.0):

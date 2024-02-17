@@ -64,7 +64,7 @@ class IRDDataset(Dataset):
             json_data = json.load(f)
 
         # get image
-        img_path = os.path.join(self.data_root, 'images', base_name + '.jpg')
+        img_path = os.path.join(self.data_root, 'images', base_name + '.png')
         img = Image.open(img_path).convert('RGB')
 
         # get landmark data
@@ -72,10 +72,11 @@ class IRDDataset(Dataset):
         landmark = {i['Label']: np.array(i['Position'])[:2] for i in landmark}
 
         # get mask
-        mask_path = os.path.join(self.data_root, 'masks', base_name + '_255.jpg')
-        mask = Image.open(mask_path)
+        mask_path = os.path.join(self.data_root, 'masks', base_name + '_255.png')
+        poly_mask = Image.open(mask_path)
 
-        target = {'landmark': landmark, 'mask': mask, 'data_type': self.data_type, 'img_name': base_name}
+        target = {'landmark': landmark, 'poly_mask': poly_mask, 'data_type': self.data_type, 'img_name': base_name,
+                  'origin_landmark': landmark, 'transforms': []}
 
         check_data(target, base_name, self.wrong, self.legal_wrong)
         if self.transforms is not None:
@@ -119,10 +120,11 @@ if __name__ == '__main__':
     base_size = 256
     trans = T.Compose([
         # T.RandomResize(int(0.8 * base_size), base_size),
+        # T.RandomResize(int(base_size*0.8), base_size, resize_ratio=1, shrink_ratio=1),
         T.Resize([base_size]),
         T.RandomHorizontalFlip(1),
         T.RandomVerticalFlip(1),
-        T.GenerateHeatmap(),
+        T.GenerateMask(task='all'),
         # T.ToTensor(),
         # T.Normalize(mean=mean, std=std),
         T.MyPad([base_size])
@@ -132,26 +134,5 @@ if __name__ == '__main__':
     # c =1
     for i in range(len(mydata)):
         img, target = mydata[i]
-        print(i)
+        print(i, target['img_name'])
     s = 1
-
-# train data 1542
-# val data 330
-# test data 330
-
-# data 1
-# 试标 22张不能用
-# 1 curve: 5, 5 landmark: 3, 上颌骨（下颌骨）未被标注（无label）:7, 存在曲线未被标注（无label）:7
-# data 2
-# IMG_20201021_2_55_jpg_Label.json 只标了一条线，且一条线只有一个点
-# 0135877_Mengyan_Tang_20200917091142414_jpg_Label.json  未标注曲线
-# 1 curve: 3, 5 landmark:6, 上颌骨（下颌骨）未被标注（无label）:17, 存在曲线未被标注（无label）:1
-# data 3
-# 1 curve: 1, 5 landmark: 5, 上颌骨（下颌骨）未被标注（无label）:2, 存在曲线未被标注（无label）:0
-# data 4
-# 1 curve: 1, 5 landmark: 5, 上颌骨（下颌骨）未被标注（无label）:9, 存在曲线未被标注（无label）:0
-# data 5
-# 1 curve: 5, 5 landmark:0, 上颌骨（下颌骨）未被标注（无label）:14, 存在曲线未被标注（无label）:0
-# data 6
-# 1 curve: 2, 5 landmark:0, 上颌骨（下颌骨）未被标注（无label）:12, 存在曲线未被标注（无label）:0
-# 0117667_Yinying_Chen_20210526131902731_jpg_Label
