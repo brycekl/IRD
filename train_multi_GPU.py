@@ -10,7 +10,7 @@ import torch
 import transforms as T
 from dataSet import IRDDataset
 from src import UNet, u2net, MobileV3Unet, VGG16UNet, resnet_unet
-from train_utils import train_one_epoch, evaluate, create_lr_scheduler, init_distributed_mode, save_on_master, mkdir
+from train_utils import *
 
 
 class SegmentationPresetTrain:
@@ -91,6 +91,7 @@ def create_model(num_classes, num_classes_2=0, in_channel=3, base_c=32, model='u
 
 
 def main(args):
+    same_seeds(0)
     init_distributed_mode(args)
     print(args)
     device = torch.device(args.device)
@@ -364,7 +365,7 @@ if __name__ == "__main__":
     parser.add_argument('-b', '--batch-size', default=32, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/20240218/unet_keypoint', help='path where to save')
+    parser.add_argument('--output-dir', default='./model/20240220_cross_validate/unet_keypoint', help='path where to save')
     # 训练学习率，这里默认设置成0.01(使用n块GPU建议乘以n)，如果效果不好可以尝试修改学习率
     parser.add_argument('--lr', default=3e-4, type=float,
                         help='initial learning rate')
