@@ -7,9 +7,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-
-from transforms import GetROI, MyPad
-from torchvision.transforms.functional import resize
+from data_utils.visualize import show_img
 
 posture_label = {'PP': 9, 'SP': 10, 'ST': 11}
 position_label = {'B3': 12, 'U3': 13, 'U5': 14, 'UE': 15}
@@ -134,14 +132,15 @@ if __name__ == '__main__':
         T.RandomHorizontalFlip(1),
         T.RandomVerticalFlip(1),
         T.GenerateMask(task='all'),
-        # T.ToTensor(),
-        # T.Normalize(mean=mean, std=std),
-        T.MyPad([base_size])
+        T.ToTensor(),
+        T.Normalize(mean=mean, std=std),
+        # T.MyPad([base_size])
     ])
     mydata = IRDDataset(data_type='train', transforms=trans)
     # a,b = mydata[0]
     # c =1
     for i in range(len(mydata)):
         img, target = mydata[i]
+        show_img(target['show_img'], target, task='all')
         print(i, target['img_name'])
     s = 1
