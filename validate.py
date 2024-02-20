@@ -47,6 +47,7 @@ def main():
 
     # init save result
     save_root = model_path.replace('model', 'result')
+    restore_ori_size = True
     for name in ['result', 'heatmap']:
         os.makedirs(os.path.join(save_root, name), exist_ok=True)
     result = {'name': [], 'left_mse': [], 'right_mse': []} if task == 'landmark' else None
@@ -66,26 +67,29 @@ def main():
         input_img, target = transforms(ori_img, {'landmark': ori_landmark, 'poly_mask': ori_mask, 'data_type': 'val',
                                                  'transforms': [], 'h_flip': False})
         input_img = input_img.unsqueeze(0).to(device)
-        show_img = np.array(target['show_img'])
+        resize_w, resize_h = target['show_img'].size
+        show_img = np.array(target['show_img']) if not restore_ori_size else np.array(ori_img)
 
         # run model, get output and remove padding
         output = model(input_img).to('cpu').detach()[0]
-        output = np.array(output)[:, :show_img.shape[0], :show_img.shape[1]]
+        output = np.array(output)[:, :resize_h, :resize_w]
 
         # analyse result
         if task in ['landmark', 'all']:
-            landmark_gt = {ind: [int(item[0] + 0.5), int(item[1] + 0.5)] for ind, item in target['landmark'].items()}
+            landmark_gt = target['landmark'] if not restore_ori_size else ori_landmark
             landmark_pre = {ind: [0, 0] for ind in landmark_gt}
             for i, pre in enumerate(output[:2]):
+                pre = pre if not restore_ori_size else cv2.resize(pre, show_img.shape[:2][::-1])
                 left_right = 'left' if i == 0 else 'right'
                 y, x = np.where(pre == pre.max())
                 landmark_pre[i + 5] = [x[0], y[0]]
-                point = target['landmark'][i + 5]  # label=i+8
+                point = landmark_gt[i + 5]  # 使用没有经过int处理的坐标计算结果，与训练时统一
                 result[left_right + '_mse'].append(
                     math.sqrt(math.pow(x[0] - point[0], 2) + math.pow(y[0] - point[1], 2)))
                 # save heatmap result
                 plt.imsave(os.path.join(save_root, 'heatmap', name + f'_{left_right}.png'), np.array(pre))
 
+            landmark_gt = {ind: [int(item[0] + 0.5), int(item[1] + 0.5)] for ind, item in landmark_gt.items()}
             cv2.circle(show_img, landmark_gt[5], 1, [255, 0, 0], -1)
             cv2.circle(show_img, landmark_gt[6], 1, [255, 0, 0], -1)
             cv2.circle(show_img, landmark_pre[5], 1, [0, 255, 0], -1)
