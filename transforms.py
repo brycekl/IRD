@@ -124,6 +124,7 @@ class CenterCrop(object):
 
 class ToTensor(object):
     def __call__(self, image, target):
+        target['show_img'] = image.copy()
         image = F.to_tensor(image)
         target['mask'] = torch.as_tensor(np.array(target['mask']), dtype=torch.float32)
         return image, target

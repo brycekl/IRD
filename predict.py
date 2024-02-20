@@ -9,14 +9,13 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
 
-from dataSet import get_name_data
+from dataSet import IRDDataset
 from train_multi_GPU import create_model, get_transform
 from train_utils.distributed_utils import get_default_device
 
 
 def main():
     # init basic setting
-    data_root = '../datas/IRD/COCO_style'
     model_path = 'model/20240218/landmark/unet_keypoint_1_4-all_var40_6.551'
     model_weight_name = 'best_model.pth'
     device = get_default_device()
@@ -31,7 +30,6 @@ def main():
     position_type = model_config['position_type']
     model_name = model_config['model_name'] if model_config.get('model_name') else 'unet'
     model_base_c = model_config['base_c'] if model_config.get('base_c') else model_config['unet_bc']
-    base_size = model_config['base_size']  # 输入模型的图像尺寸
 
     # init model
     model = create_model(num_classes=num_classes, base_c=model_base_c, model=model_name)
@@ -41,9 +39,16 @@ def main():
 
     # init dataset
     with open('data_utils/data.json', 'r') as reader:
-        data_list = json.load(reader)[position_type]
-        mean = data_list['train_info']['mean']
-        std = data_list['train_info']['std']
+        json_list = json.load(reader)[position_type]
+        mean = json_list['train_info']['mean']
+        std = json_list['train_info']['std']
+    val_dataset = IRDDataset(data_type='val', position_type=position_type, task=task,
+                             transforms=get_transform(train=False, base_size=model_config['base_size'], task=task,
+                                                      var=model_config['var'], max_value=model_config['max_value'],
+                                                      mean=mean, std=std))
+    test_sampler = torch.utils.data.SequentialSampler(val_dataset)
+    val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=test_sampler, num_workers=1,
+                                                  collate_fn=val_dataset.collate_fn)
 
     # init save result
     save_root = model_path.replace('model', 'result')
@@ -51,40 +56,30 @@ def main():
         os.makedirs(os.path.join(save_root, name), exist_ok=True)
     result = {'name': [], 'left_mse': [], 'right_mse': []} if task == 'landmark' else None
     result = {'name': [], 'left_dice': [], 'right_dice': []} if task == 'poly' else result
-    result = {'name': [], 'left_mse': [], 'right_mse': [], 'left_dice': [],
-              'right_dice': []} if task == 'all' else result
+    result = {'name': [], 'left_mse': [], 'right_mse': [], 'left_dice': [], 'right_dice': []} if task == 'all' else result
 
     # begin to predict
-    for i, name in enumerate(data_list['val']):
+    for img, target in val_data_loader:
+        name = target['img_name'][0]
         print(name)
+        img = img.to(device)
+        output = model(img).to('cpu').detach()
+        show_img = np.array(target['show_img'][0])
         result['name'].append(name)
-
-        # get val data img and target
-        ori_img, ori_landmark, ori_mask = get_name_data(data_root, name)
-        transforms = get_transform(train=False, base_size=base_size, task=task, var=model_config['var'],
-                                   max_value=model_config['max_value'], mean=mean, std=std)
-        input_img, target = transforms(ori_img, {'landmark': ori_landmark, 'poly_mask': ori_mask, 'data_type': 'val',
-                                                 'transforms': [], 'h_flip': False})
-        input_img = input_img.unsqueeze(0).to(device)
-        show_img = np.array(target['show_img'])
-
-        # run model, get output and remove padding
-        output = model(input_img).to('cpu').detach()[0]
-        output = np.array(output)[:, :show_img.shape[0], :show_img.shape[1]]
-
-        # analyse result
         if task in ['landmark', 'all']:
-            landmark_gt = {ind: [int(item[0] + 0.5), int(item[1] + 0.5)] for ind, item in target['landmark'].items()}
+            landmark_gt = {ind: [int(item[0] + 0.5), int(item[1] + 0.5)] for ind, item in target['landmark'][0].items()}
             landmark_pre = {ind: [0, 0] for ind in landmark_gt}
-            for i, pre in enumerate(output[:2]):
+            for i, pre in enumerate(output[0][:2]):
                 left_right = 'left' if i == 0 else 'right'
                 y, x = np.where(pre == pre.max())
-                landmark_pre[i + 5] = [x[0], y[0]]
-                point = target['landmark'][i + 5]  # label=i+8
-                result[left_right + '_mse'].append(
-                    math.sqrt(math.pow(x[0] - point[0], 2) + math.pow(y[0] - point[1], 2)))
+                landmark_pre[i+5] = [x[0], y[0]]
+                point = target['landmark'][0][i + 5]  # label=i+8
+                result[left_right+'_mse'].append(math.sqrt(math.pow(x[0] - point[0], 2) + math.pow(y[0] - point[1], 2)))
                 # save heatmap result
-                plt.imsave(os.path.join(save_root, 'heatmap', name + f'_{left_right}.png'), np.array(pre))
+                pre_array = np.array(pre)
+                pre_array = (pre_array - pre_array.min()) / (pre_array.max() - pre_array.min()) * 255
+                pre_image = Image.fromarray(pre_array.astype(np.uint8))
+                pre_image.save(os.path.join(save_root, 'heatmap', name + f'_{left_right}.png'))
 
             cv2.circle(show_img, landmark_gt[5], 1, [255, 0, 0], -1)
             cv2.circle(show_img, landmark_gt[6], 1, [255, 0, 0], -1)

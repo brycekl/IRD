@@ -59,22 +59,8 @@ class IRDDataset(Dataset):
         return len(self.data_list)
 
     def __getitem__(self, index):
-        # load json data
         base_name = self.data_list[index]
-        with open(os.path.join(self.data_root, 'jsons', base_name + '.json'), 'r', encoding='utf-8') as f:
-            json_data = json.load(f)
-
-        # get image
-        img_path = os.path.join(self.data_root, 'images', base_name + '.png')
-        img = Image.open(img_path).convert('RGB')
-
-        # get landmark data
-        landmark = json_data['Models']['LandMarkListModel']['Points'][0]['LabelList']
-        landmark = {i['Label']: np.array(i['Position'])[:2] for i in landmark}
-
-        # get mask
-        mask_path = os.path.join(self.data_root, 'masks', base_name + '_255.png')
-        poly_mask = Image.open(mask_path)
+        img, landmark, poly_mask = get_name_data(self.data_root, base_name)
 
         target = {'landmark': landmark, 'poly_mask': poly_mask, 'data_type': self.data_type, 'img_name': base_name,
                   'origin_landmark': landmark, 'transforms': [], 'h_flip': False}
@@ -111,6 +97,26 @@ def check_data(target, name, wrong, legal_wrong):
         landmark = target['landmark']
         if landmark[5][0] > landmark[6][0] and name not in legal_wrong['landmark']:
             wrong['landmark'].append(name)
+
+
+def get_name_data(data_root, name):
+    # load json data
+    with open(os.path.join(data_root, 'jsons', name + '.json'), 'r', encoding='utf-8') as f:
+        json_data = json.load(f)
+
+    # get image
+    img_path = os.path.join(data_root, 'images', name + '.png')
+    img = Image.open(img_path).convert('RGB')
+
+    # get landmark data
+    landmark = json_data['Models']['LandMarkListModel']['Points'][0]['LabelList']
+    landmark = {i['Label']: np.array(i['Position'])[:2] for i in landmark}
+
+    # get mask
+    mask_path = os.path.join(data_root, 'masks', name + '_255.png')
+    poly_mask = Image.open(mask_path)
+
+    return img, landmark, poly_mask
 
 
 if __name__ == '__main__':
