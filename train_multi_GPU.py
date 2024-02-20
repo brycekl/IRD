@@ -47,7 +47,8 @@ class SegmentationPresetEval:
     def __init__(self, base_size, task='landmark', var=40,  max_value=8,
                  mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
         self.transforms = T.Compose([
-            T.Resize([base_size]),
+            T.RandomResize(base_size, base_size, resize_ratio=1, shrink_ratio=0),
+            # T.Resize([base_size]),
             T.GenerateMask(task=task, var=var, max_value=max_value),
             T.ToTensor(),
             T.Normalize(mean=mean, std=std),

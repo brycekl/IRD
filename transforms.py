@@ -59,10 +59,11 @@ class RandomResize(object):
 
         ow, oh = image.size
         ratio = size / max(ow, oh)
+        resize_w_h = [int(ow * ratio + 0.5), int(oh * ratio + 0.5)]
         # image = F.resize(image, [int(oh * ratio), int(ow * ratio)])
-        image = image.resize([int(ow * ratio), int(oh * ratio)])
+        image = image.resize(resize_w_h)
         target['landmark'] = {i: [j[0] * ratio, j[1] * ratio] for i, j in target['landmark'].items()}
-        target['poly_mask'] = target['poly_mask'].resize([int(ow * ratio), int(oh * ratio)], resample=Image.NEAREST)
+        target['poly_mask'] = target['poly_mask'].resize(resize_w_h, resample=Image.NEAREST)
         target['transforms'].append('RandomResize')
         target['resize_ratio'] = ratio
 
@@ -373,10 +374,11 @@ class Resize(object):
     def __call__(self, image, target):
         ow, oh = image.size
         ratio = self.size / max(ow, oh)
+        resize_w_h = [int(ow * ratio + 0.5), int(oh * ratio + 0.5)]
         # image = F.resize(image, [int(oh * ratio), int(ow * ratio)])
-        image = image.resize([int(ow * ratio), int(oh * ratio)])
+        image = image.resize(resize_w_h)
         target['landmark'] = {i: [j[0] * ratio, j[1] * ratio] for i, j in target['landmark'].items()}
-        target['poly_mask'] = target['poly_mask'].resize([int(ow * ratio), int(oh * ratio)], resample=Image.NEAREST)
+        target['poly_mask'] = target['poly_mask'].resize(resize_w_h, resample=Image.NEAREST)
         target['transforms'].append('Resize')
         target['resize_ratio'] = ratio
 

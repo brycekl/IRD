@@ -129,7 +129,8 @@ if __name__ == '__main__':
     trans = T.Compose([
         # T.RandomResize(int(0.8 * base_size), base_size),
         # T.RandomResize(int(base_size*0.8), base_size, resize_ratio=1, shrink_ratio=1),
-        T.Resize([base_size]),
+        T.RandomResize(base_size, base_size, resize_ratio=1, shrink_ratio=0),
+        # T.Resize([base_size]),
         T.RandomHorizontalFlip(1),
         T.RandomVerticalFlip(1),
         T.GenerateMask(task='all'),
