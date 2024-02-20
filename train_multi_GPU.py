@@ -103,12 +103,11 @@ def main(args):
     task = args.task
     assert task in ['landmark', 'poly', 'all'], "task must in ['landmark', 'poly', 'all']"
     num_classes = 2 if task in ['landmark', 'poly'] else 4
-    base_size = args.base_size
-    output_dir = args.output_dir
+    base_size = args.base_size  # 训练使用的特征图大小
     var = args.var
     position_type = args.position_type
     # args.lr = lr
-
+    output_dir = os.path.join(os.path.dirname(args.output_dir), task, os.path.basename(args.output_dir))
     if output_dir:
         mkdir(output_dir)
     with open(f'{output_dir}/config.json', 'w') as json_file:
@@ -147,7 +146,7 @@ def main(args):
     print("Creating model")
     # create model num_classes equal background + foreground classes
 
-    model = create_model(num_classes=num_classes, in_channel=3, base_c=args.unet_bc, model='unet')
+    model = create_model(num_classes=num_classes, in_channel=3, base_c=args.base_c, model='unet')
     model.to(device)
 
     if args.sync_bn and args.device != 'mps':
@@ -195,7 +194,6 @@ def main(args):
     losses = {'train_losses': {'mse_loss': [], 'dice_loss': []}, 'val_losses': {'mse_loss': [], 'dice_loss': []}}
     metrics = {'best_mse': {5: 0, 6: 0, 'm_mse': 1000}, 'best_dice': 0, 'dice': [],
                'mse': [], 'best_epoch_mse': {}, 'best_epoch_dice': {}}
-    save_model = {'save_mse': False, 'save_dice': False}
 
     # tensorboard writer
     # tr_writer = SummaryWriter(log_dir=os.path.join(output_dir, 'train'))
@@ -204,6 +202,7 @@ def main(args):
     # tr_writer.add_graph(model, init_img)
 
     for epoch in range(args.start_epoch, args.epochs):
+        save_model = {'save_mse': False, 'save_dice': False}  # 每个epoch 判断是否保存（大失误）
         if args.distributed:
             train_sampler.set_epoch(epoch)
         if epoch == 0 and args.resume:
@@ -222,7 +221,7 @@ def main(args):
                     metrics['best_epoch_mse'][epoch] = round(val_mean_mse, 3)
                 for ind, c_mse in val_mse['mse_classes'].items():
                     metrics['best_mse'][ind] = round(c_mse, 3)
-            print(f'best_mse:{metrics["best_mse"]["m_mse"]:.3f}    ', end='  ')
+            print(f'epoch: {epoch}  train_mse: {val_mean_mse:.3f} best_mse:{metrics["best_mse"]["m_mse"]:.3f}    ', end='  ')
         if task in ['poly', 'all']:
             val_dice = float(1 - val_loss['dice_loss'])
             if val_dice > metrics['best_dice']:
@@ -230,7 +229,7 @@ def main(args):
                 metrics['best_dice'] = val_dice
                 if metrics['best_dice'] > 0.5:
                     metrics['best_epoch_dice'][epoch] = round(val_dice, 3)
-            print(f'best dice : {metrics["best_dice"]:.3f}', end='')
+            print(f'epoch: {epoch}  train_dice: {val_dice:.3f} best dice : {metrics["best_dice"]:.3f}', end='')
         print('')
 
         # 只在主进程上进行写操作， 将结果写入txt
@@ -239,15 +238,6 @@ def main(args):
                 # 记录每个epoch对应的train_loss、lr以及验证集各指标
                 train_info = f"[epoch: {epoch}]    lr: {lr:.6f}\n"
                 # tr_writer.add_scalar('learning rate', lr, epoch)
-                if task in ['poly', 'all']:
-                    train_info += f"t_dice_loss: {mean_loss['dice_loss']:.4f}    " \
-                                  f"v_dice_loss: {val_loss['dice_loss']:.4f}    "
-                    losses['train_losses']['dice_loss'].append(round(float(mean_loss['dice_loss']), 3))
-                    losses['val_losses']['dice_loss'].append(round(float(val_loss['dice_loss']), 3))
-                    metrics['dice'].append(round(float(val_dice), 3))
-                    # tr_writer.add_scalar('dice_loss', mean_loss['dice_loss'], epoch)
-                    # val_writer.add_scalar('dice_loss', val_loss['dice_loss'], epoch)
-                    # val_writer.add_scalar('val_dice', val_dice, epoch)
 
                 if task in ['landmark', 'all']:
                     train_info += f"t_mse_loss: {mean_loss['mse_loss']:.4f}    " \
@@ -260,6 +250,17 @@ def main(args):
                     # tr_writer.add_scalar('mse_loss', mean_loss['mse_loss'], epoch)
                     # val_writer.add_scalar('mse_loss', val_loss['mse_loss'], epoch)
                     # val_writer.add_scalar('val_mse', val_mean_mse, epoch)
+
+                if task in ['poly', 'all']:
+                    train_info += f"t_dice_loss: {mean_loss['dice_loss']:.4f}    " \
+                                  f"v_dice_loss: {val_loss['dice_loss']:.4f}    "
+                    losses['train_losses']['dice_loss'].append(round(float(mean_loss['dice_loss']), 3))
+                    losses['val_losses']['dice_loss'].append(round(float(val_loss['dice_loss']), 3))
+                    metrics['dice'].append(round(float(val_dice), 3))
+                    # tr_writer.add_scalar('dice_loss', mean_loss['dice_loss'], epoch)
+                    # val_writer.add_scalar('dice_loss', val_loss['dice_loss'], epoch)
+                    # val_writer.add_scalar('val_dice', val_dice, epoch)
+
                 f.write(train_info + "\n\n\n")
 
             # 保存模型
@@ -273,10 +274,10 @@ def main(args):
                 if args.amp:
                     save_file["scaler"] = scaler.state_dict()
 
-                if args.save_best is True and save_model['save_mse'] is True:
+                if args.save_best and save_model['save_mse']:
                     save_on_master(save_file, os.path.join(output_dir, 'best_model.pth'))
                     print('save best model')
-                if save_model['save_dice'] is True:
+                if args.save_best and save_model['save_dice']:
                     save_on_master(save_file, os.path.join(output_dir, 'best_dice_model.pth'))
                     print('save best dice model')
 
@@ -305,8 +306,8 @@ def main(args):
         print(metrics['best_epoch_mse'], metrics['best_epoch_dice'])
 
         # 最后的作图 loss， metric图，以及文件夹重命名
-        skip_epoch = 1  # 前面训练不稳定，作图跳过的epoch数
-        assert skip_epoch >= 0 and skip_epoch <= args.epochs
+        skip_epoch = 3  # 前面训练不稳定，作图跳过的epoch数
+        assert 0 <= skip_epoch <= args.epochs, 'error'
         if task in ['landmark', 'all']:
             plt.plot(losses['train_losses']['mse_loss'][skip_epoch:], 'r', label='train_loss')
             plt.plot(losses['val_losses']['mse_loss'][skip_epoch:], 'g', label='val_loss')
@@ -338,25 +339,35 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description=__doc__)
 
-    # 训练文件的根目录(DRIVE)
-    parser.add_argument('--data-path', default='./', help='dataset')
-    # 训练设备类型
+    """ basic config """
     parser.add_argument('--device', default='cuda', help='device')
-    # 检测目标类别数(不包含背景)
-    # parser.add_argument('--num-classes', default=2, type=int, help='num_classes')
-    parser.add_argument('--base-size', default=256, type=int, help='model input size')
-    parser.add_argument('--unet-bc', default=16, type=int, help='unet base channel')
-    parser.add_argument('--position_type', default='12', type=str, help='the position type')
 
+    """ dataset config """
+    parser.add_argument('--data-path', default='./', help='dataset')
+    parser.add_argument('--base-size', default=256, type=int, help='model input size')
     parser.add_argument('--task', default='all', type=str, help='[landmark, poly, all]')
+    parser.add_argument('--position_type', default='12', type=str, help='the position type')
     parser.add_argument('--var', default=40, type=int, help='the variance of heatmap')
     parser.add_argument('--max_value', default=8, type=int, help='the max value of heatmap')
+
+    """ model config """
+    parser.add_argument('--base_c', default=16, type=int, help='model base channel')
+
+    """ training config """
+
+    # 训练设备类型
+    # 检测目标类别数(不包含背景)
+    # parser.add_argument('--num-classes', default=2, type=int, help='num_classes')
+
     # 每块GPU上的batch_size
     parser.add_argument('-b', '--batch-size', default=32, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
     # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/unet_keypoint', help='path where to save')
-
+    parser.add_argument('--output-dir', default='./model/20240218/unet_keypoint', help='path where to save')
+    # 训练学习率，这里默认设置成0.01(使用n块GPU建议乘以n)，如果效果不好可以尝试修改学习率
+    parser.add_argument('--lr', default=3e-4, type=float,
+                        help='initial learning rate')
+    parser.add_argument('--model_name', default='unet', type=str)
     # 指定接着从哪个epoch数开始训练
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
     # 训练的总epoch数
@@ -364,9 +375,6 @@ if __name__ == "__main__":
                         help='number of total epochs to run')
     # 是否使用同步BN(在多个GPU之间同步)，默认不开启，开启后训练速度会变慢
     parser.add_argument('--sync_bn', action='store_false', help='whether using SyncBatchNorm')
-    # 训练学习率，这里默认设置成0.01(使用n块GPU建议乘以n)，如果效果不好可以尝试修改学习率
-    parser.add_argument('--lr', default=3e-4, type=float,
-                        help='initial learning rate')
     # SGD的momentum参数
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                         help='momentum')
@@ -407,8 +415,17 @@ if __name__ == "__main__":
     #     mkdir(args.output_dir)
 
     main(args)
-    # CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=12
-    # CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=13
-    # CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=14
-    # CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=15
-    # CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.005 --var=20 --max_value=1
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.005 --var=20 --max_value=2
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.005 --var=20 --max_value=4
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.005 --var=20 --max_value=6
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.005 --var=20 --max_value=10
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.0008 --unet-bc=32
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.0005 --unet-bc=32
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.0003 --unet-bc=32
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.0001 --unet-bc=32
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.01 --unet-bc=32
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.008 --unet-bc=32
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.003 --unet-bc=32
+# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.001 --unet-bc=32
+
