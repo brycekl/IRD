@@ -120,7 +120,8 @@ def main(args):
     print("Creating model")
     # create model num_classes equal background + foreground classes
 
-    model = create_model(num_classes=num_classes, in_channel=3, base_c=args.base_c, model_name=args.model_name)
+    model = create_model(num_classes=num_classes, in_channel=3, base_c=args.base_c, model_name=args.model_name,
+                         input_size=args.base_size)
     model.to(device)
 
     if args.sync_bn and args.device != 'mps':
@@ -314,64 +315,50 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
 
     """ basic config """
+    parser.add_argument('--save-best', default=True, type=bool, help='only save best weights')
+    parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
     parser.add_argument('--device', default='cuda', help='device')
+    parser.add_argument('--output-dir', default='./model/20240220_cross_validate/unet_keypoint', help='path where to save')
 
-    """ dataset config """
+    """ dataset config：配置data, dataset, dataloader, codec, transforms"""
     parser.add_argument('--data-path', default='./', help='dataset')
-    parser.add_argument('--base-size', default=256, type=int, help='model input size')
     parser.add_argument('--task', default='all', type=str, help='[landmark, poly, all]')
     parser.add_argument('--position_type', default='12', type=str, help='the position type')
     parser.add_argument('--var', default=40, type=int, help='the variance of heatmap')
     parser.add_argument('--max_value', default=8, type=int, help='the max value of heatmap')
+    parser.add_argument('-b', '--batch-size', default=32, type=int,
+                        help='images per gpu, the total batch size is $NGPU x batch_size')
 
     """ model config """
     parser.add_argument('--base_c', default=16, type=int, help='model base channel')
+    parser.add_argument('--base-size', default=256, type=int, help='model input size')
+    parser.add_argument('--model_name', default='unet', type=str)
 
-    """ training config """
-
-    # 训练设备类型
-    # 检测目标类别数(不包含背景)
-    # parser.add_argument('--num-classes', default=2, type=int, help='num_classes')
-
-    # 每块GPU上的batch_size
-    parser.add_argument('-b', '--batch-size', default=32, type=int,
-                        help='images per gpu, the total batch size is $NGPU x batch_size')
-    # 文件保存地址
-    parser.add_argument('--output-dir', default='./model/20240220_cross_validate/unet_keypoint', help='path where to save')
+    """ training config: lr, lr scheduler, epoch, optimizer, """
     # 训练学习率，这里默认设置成0.01(使用n块GPU建议乘以n)，如果效果不好可以尝试修改学习率
     parser.add_argument('--lr', default=3e-4, type=float,
-                        help='initial learning rate')
-    parser.add_argument('--model_name', default='unet', type=str)
-    # 指定接着从哪个epoch数开始训练
+                        help='initial learning rate, 0.001 is the default lr on 4 gpus and 32 images_per_gpu')
+    parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
+    parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
+                        metavar='W', help='weight decay (default: 1e-4)', dest='weight_decay')
+    parser.add_argument('--optimizer', default='Adam', choices=['Adam', 'SGD'],)
+    # scheduler
+    parser.add_argument('--scheduler', default='MultiStepLR',   # cv 用CosineAnnealingLR
+                        choices=['CosineAnnealingLR', 'ReduceLROnPlateau', 'MultiStepLR', 'ConstantLR', 'my_lr'])
+    parser.add_argument('--lr_milestones', default=[100, 130], nargs='+', type=int,
+                        help='decrease lr every step-size epochs')
+    parser.add_argument('--lr_gamma', default=0.1, type=float, help='decrease lr by a factor of lr-gamma')
+    # epoch
     parser.add_argument('--start_epoch', default=0, type=int, help='start epoch')
-    # 训练的总epoch数
-    parser.add_argument('--epochs', default=150, type=int, metavar='N',
-                        help='number of total epochs to run')
+    parser.add_argument('--epochs', default=150, type=int, metavar='N', help='number of total epochs to run')
     # 是否使用同步BN(在多个GPU之间同步)，默认不开启，开启后训练速度会变慢
     parser.add_argument('--sync_bn', action='store_false', help='whether using SyncBatchNorm')
-    # SGD的momentum参数
-    parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
-                        help='momentum')
-    # SGD的weight_decay参数
-    parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
-                        metavar='W', help='weight decay (default: 1e-4)',
-                        dest='weight_decay')
 
-    # 只保存dice coefficient值最高的权重
-    parser.add_argument('--save-best', default=True, type=bool, help='only save best weights')
-    # 训练过程打印信息的频率
-    parser.add_argument('--print-freq', default=1, type=int, help='print frequency')
-
+    """ other config """
     # 基于上次的训练结果接着训练
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     # 不训练，仅测试
-    parser.add_argument(
-        "--test-only",
-        dest="test_only",
-        help="Only test the model",
-        action="store_true",
-    )
-
+    parser.add_argument("--test-only", dest="test_only", help="Only test the model", action="store_true")
     # 分布式进程数
     parser.add_argument('--world-size', default=4, type=int, help='number of distributed processes')
     # 数据加载以及预处理的线程数
@@ -389,17 +376,3 @@ if __name__ == "__main__":
     #     mkdir(args.output_dir)
 
     main(args)
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.005 --var=20 --max_value=1
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.005 --var=20 --max_value=2
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.005 --var=20 --max_value=4
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.005 --var=20 --max_value=6
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.005 --var=20 --max_value=10
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.0008 --unet-bc=32
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.0005 --unet-bc=32
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.0003 --unet-bc=32
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.0001 --unet-bc=32
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.01 --unet-bc=32
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.008 --unet-bc=32
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.003 --unet-bc=32
-# CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --position_type=4-all --task=landmark --lr=0.001 --unet-bc=32
-
