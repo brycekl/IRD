@@ -16,7 +16,8 @@ seg_label = {'left': 8, 'right': 7}
 
 
 class IRDDataset(Dataset):
-    def __init__(self, data_type: str = 'train', position_type='4-all', task='landmark', transforms=None, ki=-1, k=5):
+    def __init__(self, data_type: str = 'train', position_type='4-all', other_data=False, task='landmark',
+                 transforms=None, ki=-1, k=5):
         assert data_type in ['train', 'val', 'test'], "data_type must be in ['train', 'val', 'test']"
         self.data_root = '../datas/IRD/COCO_style'
         self.transforms = transforms
@@ -32,7 +33,8 @@ class IRDDataset(Dataset):
 
         # load position type and data type data from json file
         with open('data_utils/data.json', 'r') as reader:
-            self.data_list = json.load(reader)[position_type]
+            all_data = json.load(reader)
+            self.data_list = all_data[position_type]
             self.train_info = self.data_list['train_info']
         if ki != -1:
             # 使用k折交叉验证
@@ -47,6 +49,11 @@ class IRDDataset(Dataset):
                 self.data_list = all_json[:length * ki] + all_json[length * (ki + 1):]
         else:
             self.data_list = self.data_list[data_type]
+
+        # add other position data
+        if other_data and data_type == 'train':
+            self.data_list = self.data_list + all_data['other']
+        print(f'Use {len(self.data_list)} data while {data_type}ing.')
 
         # check file
         assert len(self.data_list) > 0, 'in "{}" file does not find data.'.format(position_type + '_' + data_type)

@@ -92,10 +92,10 @@ def main(args):
     results_file = output_dir + '/' + "log.txt"
 
     # init dataset
-    train_dataset = IRDDataset(data_type='train', position_type=position_type, task=task,
+    train_dataset = IRDDataset(data_type='train', position_type=position_type, other_data=args.other_data, task=task,
                                transforms=get_transform(train=True, base_size=base_size, task=task,
                                                         var=var, max_value=args.max_value, mean=mean, std=std))
-    val_dataset = IRDDataset(data_type='val', position_type=position_type, task=task,
+    val_dataset = IRDDataset(data_type='val', position_type=position_type, other_data=args.other_data, task=task,
                              transforms=get_transform(train=False, base_size=base_size, task=task,
                                                       var=var, max_value=args.max_value, mean=mean, std=std))
 
@@ -116,7 +116,6 @@ def main(args):
                                                   sampler=test_sampler, num_workers=args.workers,
                                                   collate_fn=train_dataset.collate_fn)
 
-    print(len(train_dataset), len(val_dataset))
     print("Creating model")
     # create model num_classes equal background + foreground classes
 
@@ -323,7 +322,8 @@ if __name__ == "__main__":
     """ dataset config：配置data, dataset, dataloader, codec, transforms"""
     parser.add_argument('--data-path', default='./', help='dataset')
     parser.add_argument('--task', default='all', type=str, help='[landmark, poly, all]')
-    parser.add_argument('--position_type', default='12', type=str, help='the position type')
+    parser.add_argument('--position_type', default='4-all', type=str, help='the position type')
+    parser.add_argument('--other_data', action='store_true', help='add other position data while training.')
     parser.add_argument('--var', default=40, type=int, help='the variance of heatmap')
     parser.add_argument('--max_value', default=8, type=int, help='the max value of heatmap')
     parser.add_argument('-b', '--batch-size', default=32, type=int,

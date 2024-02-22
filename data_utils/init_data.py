@@ -12,7 +12,7 @@ random.seed(2024)
 
 def generate_json():
     root = '../../datas/IRD/COCO_style/jsons'
-    save_json = {'12': [], '13': [], '14': [], '15': [], '4-all': [], 'all': []}
+    save_json = {'12': [], '13': [], '14': [], '15': [], '4-all': [], 'other': []}
     json_files = [item.split('.json')[0] for item in os.listdir(root)]
     for json_file in json_files:
         json_path = os.path.join(root, json_file + '.json')
@@ -25,11 +25,14 @@ def generate_json():
                 if item in list(position_label.keys()):
                     save_json[item].append(json_file)
                     save_json['4-all'].append(json_file)
-        save_json['all'].append(json_file)
+        else:
+            save_json['other'].append(json_file)
 
     final_data = {i: {} for i in save_json.keys()}
     for i, item in save_json.items():
-        # FIXME all 数据类型不应该将其他的数据划入其中
+        if i == 'other':
+            final_data[i] = save_json[i]
+            continue
         sampled_list_1 = random.sample(item, int(len(item) * 0.8))
         sampled_list_2 = [item for item in item if item not in sampled_list_1]
         train_info = compute_mean_std(os.path.join(os.path.dirname(root), 'images'), sampled_list_1)
