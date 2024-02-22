@@ -66,30 +66,6 @@ def get_transform(train, base_size=256, task='landmark', var=40, max_value=8, me
         return SegmentationPresetEval(base_size, task, var, max_value, mean=mean, std=std)
 
 
-def create_model(num_classes, num_classes_2=0, in_channel=3, base_c=32, model='unet'):
-    if model == 'unet':
-        model = UNet(in_channels=in_channel, num_classes=num_classes, num_classes_2=num_classes_2, base_c=base_c)
-        print('create unet model successfully')
-    elif model == 'mobilev3unet':
-        model = MobileV3Unet(num_classes=num_classes)
-        print('create mobilev3unet model successfully')
-    elif model == 'vgg16unet':
-        model = VGG16UNet(num_classes=num_classes)
-        print('create vgg16unet model successfully')
-    elif model == 'u2netlite':
-        model = u2net.u2net_lite(num_classes)
-        print('create u2net lite model successfully')
-    elif model == 'u2netfull':
-        model = u2net.u2net_full(num_classes)
-        print('create u2net full model successfully')
-    elif model == 'resnet34unet':
-        model = resnet_unet.Resnet34(3, num_classes)
-        print('create resnet unet model successfully')
-
-    # model = HighResolutionNet(num_joints=num_classes, base_channel=base_c)
-    return model
-
-
 def main(args):
     same_seeds(0)
     init_distributed_mode(args)
@@ -101,28 +77,24 @@ def main(args):
         mean = json_list['train_info']['mean']
         std = json_list['train_info']['std']
 
-    # name = 'lr_' + str(lr)
+    # load args parameters
     task = args.task
     assert task in ['landmark', 'poly', 'all'], "task must in ['landmark', 'poly', 'all']"
     num_classes = 2 if task in ['landmark', 'poly'] else 4
     base_size = args.base_size  # 训练使用的特征图大小
     var = args.var
     position_type = args.position_type
-    # args.lr = lr
     output_dir = os.path.join(os.path.dirname(args.output_dir), task, os.path.basename(args.output_dir))
     if output_dir:
         mkdir(output_dir)
     with open(f'{output_dir}/config.json', 'w') as json_file:
         json.dump(vars(args), json_file)
-
-    # 用来保存coco_info的文件
-    # name = output_dir.split('/')[-1]
     results_file = output_dir + '/' + "log.txt"
 
+    # init dataset
     train_dataset = IRDDataset(data_type='train', position_type=position_type, task=task,
                                transforms=get_transform(train=True, base_size=base_size, task=task,
                                                         var=var, max_value=args.max_value, mean=mean, std=std))
-
     val_dataset = IRDDataset(data_type='val', position_type=position_type, task=task,
                              transforms=get_transform(train=False, base_size=base_size, task=task,
                                                       var=var, max_value=args.max_value, mean=mean, std=std))
@@ -148,7 +120,7 @@ def main(args):
     print("Creating model")
     # create model num_classes equal background + foreground classes
 
-    model = create_model(num_classes=num_classes, in_channel=3, base_c=args.base_c, model='unet')
+    model = create_model(num_classes=num_classes, in_channel=3, base_c=args.base_c, model_name=args.model_name)
     model.to(device)
 
     if args.sync_bn and args.device != 'mps':

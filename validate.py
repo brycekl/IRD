@@ -10,7 +10,8 @@ import pandas as pd
 from PIL import Image
 
 from dataSet import get_name_data
-from train_multi_GPU import create_model, get_transform
+from train_multi_GPU import get_transform
+from train_utils.init_model_utils import create_model
 from train_utils.distributed_utils import get_default_device
 
 
@@ -34,7 +35,7 @@ def main():
     base_size = model_config['base_size']  # 输入模型的图像尺寸
 
     # init model
-    model = create_model(num_classes=num_classes, base_c=model_base_c, model=model_name)
+    model = create_model(num_classes=num_classes, base_c=model_base_c, model_name=model_name)
     model.load_state_dict(torch.load(os.path.join(model_path, model_weight_name), map_location=device)['model'])
     model.to(device).eval()
     model(init_img)
