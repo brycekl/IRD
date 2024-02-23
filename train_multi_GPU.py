@@ -80,7 +80,7 @@ def main(args):
     # load args parameters
     task = args.task
     assert task in ['landmark', 'poly', 'all'], "task must in ['landmark', 'poly', 'all']"
-    num_classes = 2 if task in ['landmark', 'poly'] else 4
+    num_classes = 2 if task == 'landmark' else 3 if task == 'poly' else 5
     base_size = args.base_size  # 训练使用的特征图大小
     var = args.var
     position_type = args.position_type

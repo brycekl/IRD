@@ -393,7 +393,7 @@ class GenerateMask(object):
 
     def __call__(self, img, target):
         # generate mask according to the task type
-        num_c = 2 if self.task in ['landmark', 'poly'] else 4
+        num_c = 2 if self.task == 'landmark' else 3 if self.task == 'poly' else 5
         mask = torch.zeros((num_c, *img.size[::-1]), dtype=torch.float)
         # generate landmark mask
         if self.task in ['landmark', 'all']:
@@ -450,6 +450,7 @@ class GenerateMask(object):
             # label[cope_mask == 223] = 1
             # label[cope_mask == 255] = 2
             mask[-2:, :, :] = poly_mask
+            mask[-3][poly_mask[0]+poly_mask[1] == 0] = 1
         target['mask'] = mask
         target['transforms'].append('GenerateHeatmap')
         return img, target

@@ -32,11 +32,11 @@ def criterion(inputs, target, task: str = 'landmark', ignore_index: int = -100, 
         # 根据gt构建每个类别的矩阵
         # dice_target = build_target(target, num_classes, ignore_index)  # B * C* H * W
         # 计算两区域和两曲线的dice
-        losses['dice_loss'] += (dice_loss(inputs[:, :2, :], target[:, :2, :], multiclass=True,
+        losses['dice_loss'] += (dice_loss(inputs[:, -3:, :], target[:, -3:, :], multiclass=True,
                                           ignore_index=ignore_index))
     if task in ['landmark', 'all']:
-        pre = inputs[:, -2:, :]
-        target_ = target[:, -2:, :]
+        pre = inputs[:, :2, :]
+        target_ = target[:, :2, :]
         if ignore_index > 0:
             roi_mask = torch.ne(target_, ignore_index)
             pre = pre[roi_mask]
@@ -85,7 +85,7 @@ def evaluate(model, data_loader, device, num_classes, weight=1):
                     point = target['landmark'][0][i + 5]  # label=i+8
                     mse[i + 5].append(math.sqrt(math.pow(x[0] - point[0], 2) + math.pow(y[0] - point[1], 2)))
             if task in ['poly', 'all']:
-                loss['dice_loss'] += (dice_loss(output[:, -2:, :], mask[:, -2:, :], multiclass=True, ignore_index=255))
+                loss['dice_loss'] += (dice_loss(output[:, -3:, :], mask[:, -3:, :], multiclass=True, ignore_index=255))
 
     loss = {i: j / len(data_loader) for i, j in loss.items()}
     m_mse = []
