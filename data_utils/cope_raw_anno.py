@@ -1,21 +1,11 @@
 import glob
 import os
-import tarfile
 import shutil
 import json
 import SimpleITK as sitk
 import cv2
 import numpy as np
-
-
-def tar_extract(tar_path, target_path):
-    tar = tarfile.open(tar_path)
-    file_names = tar.getnames()
-    assert len(file_names) == 2, os.path.basename(tar_path)
-    for file_name in file_names:
-        tar.extract(file_name, target_path)
-    tar.close()
-    # os.remove(tar_path)
+from cope_1posture_anno import check_mask, tar_extract, cope_img
 
 
 def get_titai(file_name, titai):
@@ -33,18 +23,7 @@ def get_titai(file_name, titai):
     titai[name] = {'posture': posture_, 'position': position_}
 
 
-def cope_img(file_path, save_path, file_name, ext, pair_path=None):
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    shutil.copyfile(file_path, os.path.join(save_path, file_name) + '.png')
-    # save to pair path
-    if pair_path:
-        if not os.path.exists(pair_path):
-            os.makedirs(pair_path)
-        shutil.copyfile(file_path, os.path.join(pair_path, file_name) + '.png')
-
-
-def cope_json(json_path, save_path, file_name, titai, pair_path=None, error_info=None, all_titai=None):
+def cope_json(json_path, save_path, file_name, titai, pair_path=None, all_titai=None):
     """
     将图片的json文件使用模板初始化为标准格式
     更改内容有：FileInfo:Name、Height、Width， FileName, LabelGroup,
@@ -133,7 +112,7 @@ def cope_json(json_path, save_path, file_name, titai, pair_path=None, error_info
     for ind in polys.keys():
         polys[ind] = np.array(polys[ind])
     if keypoints[5][0] > keypoints[6][0] or polys[7].T[0].max() > polys[8].T[0].min():
-        error_info['ann_error'].append(file_name)
+        error_info['landmark_anno_error'].append(file_name)
         return
 
     # 写入json文件
@@ -154,18 +133,17 @@ def cope_mask(nii_path, save_path, file_name, binary_TF=False, pair_path=None):
     if binary_TF:
         itk_img = sitk.Cast(sitk.RescaleIntensity(itk_img), sitk.sitkUInt8)  # 转换成0-255的二值灰度图
     img_array = sitk.GetArrayFromImage(itk_img)
-    # 二值化后，img_array的取值为0和255；
-    # 未二值化前，img_array的取值为0、45和46（其中45和46分别为图中两种不同标签标签的类别id值）。
-    save_name = os.path.join(save_path, file_name)
-    save_name = save_name + '_255.png' if binary_TF else save_name + '.png'
-    cv2.imwrite(save_name, img_array)
+
+    mask = check_mask(img_array, file_name)
+    save_name = os.path.join(save_path, file_name + '.png')
+    cv2.imwrite(save_name, mask)
     if pair_path:
         if not os.path.exists(pair_path):
             os.makedirs(pair_path)
         shutil.copy(nii_path, os.path.join(pair_path, file_name) + '_png_Label.nii.gz')
 
 
-def check_all_titai(all_titai, error_info):
+def check_all_titai(all_titai):
     """
     检查改文件夹是否还有12种体态信息
     :return:
@@ -204,7 +182,7 @@ if __name__ == '__main__':
     mask_root = '../../datas/IRD/{}/masks'.format(root.split('/')[-1])
     pair_path = '../../datas/IRD/{}/pair_files'.format(root.split('/')[-1])
     # 标注错误，如：老标注格式没有体态信息，没有完全标注所有信息，标注错误左边大大于右边，
-    error_info = {'old_ann_no_pos': [], 'no_full_anno': [], 'ann_error': []}
+    error_info = {'old_ann_no_pos': [], 'no_full_anno': [], 'landmark_anno_error': [], 'no_two_region': []}
 
     file_name_list = os.listdir(root)
     # 对每个患者，共12个体态进行处理
@@ -238,10 +216,16 @@ if __name__ == '__main__':
             # 判断标注格式上是否有
             cope_img(os.path.join(dir_path, image_name), img_root, final_name, ext, pair_path=pair_path)
             json_titai = None if base_name not in titai else titai[base_name]
-            cope_json(json_file[0], json_root, final_name, json_titai, pair_path=pair_path, error_info=error_info, all_titai=all_titai)
+            cope_json(json_file[0], json_root, final_name, json_titai, pair_path=pair_path, all_titai=all_titai)
             cope_mask(mask_file[0], mask_root, final_name, binary_TF=True, pair_path=pair_path)
             # cope_mask(mask_file[0], mask_root, final_name, binary_TF=True)
-        check_all_titai(all_titai, error_info)   # 检查该文件夹是否有12个体态
+        check_all_titai(all_titai)   # 检查该文件夹是否有12个体态
+
+    # 去除已检查的landmark_anno_error,
+    with open('./landmark_anno_error', 'r') as reader:
+        legal_landmark_error = [line.strip() for line in reader.readlines()]
+    error_info['landmark_anno_error'] = list(filter(lambda x: x not in legal_landmark_error, error_info['landmark_anno_error']))
+
     for i, j in error_info.items():
         if i == 'no_full_anno' and len(j) > 0:
             print(i)

@@ -456,48 +456,10 @@ class GenerateMask(object):
             mask[:2, :, :] = landmark_mask
         # generate poly mask, to avoid anno mistakes, check the annotation data
         if self.task in ['poly', 'all']:
-            poly_mask = torch.zeros((2, *img.shape[:2]), dtype=torch.float)
-            cope_mask = np.asarray(target['poly_mask'])
-            # 共有两种合格格式，
-            # 不直接用233/255判断，怕医生标错区域
-            # 使用label检查是否为两个区域, 若是，使用重心判断左右
-            # 若不是，判断是否为233，255，只保留233/255中，最大的区域
-            label = ndimage.label(cope_mask)
-            # two region
-            if label[1] == 2:
-                left = 1 if np.median(np.where(label[0] == 1)[1]) < np.median(np.where(label[0] == 2)[1]) else 2
-                right = 2 if left == 1 else 1
-                if target['h_flip']: left, right = right, left
-                poly_mask[0][label[0] == left] = 1
-                poly_mask[1][label[0] == right] = 1
-            # one or more region of poly
-            else:
-                label_ = np.zeros_like(label[0])
-                mask_value = np.unique(cope_mask)
-                if len(mask_value) == 3:
-                    # just save the biggest region
-                    for value in mask_value[1:]:
-                        value_mask = cope_mask == value
-                        value_label = ndimage.label(value_mask)
-                        if value_label[1] > 1:
-                            biggest_region = value_label[0] == np.argmax(np.bincount(value_label[0].flat)[1:]) + 1
-                            label_[biggest_region] = label_.max() + 1
-                        else:
-                            label_[value_label[0].astype(np.bool_)] = label_.max() + 1
-                    # save result in poly_mask
-                    left = 1 if np.median(np.where(label_ == 1)[1]) < np.median(np.where(label_ == 2)[1]) else 2
-                    right = 2 if left == 1 else 1
-                    if target['h_flip']: left, right = right, left
-                    poly_mask[0][label_ == left] = 1
-                    poly_mask[1][label_ == right] = 1
-                else:
-                    assert 'poly mask annotation error, do not anno suitable regions', target['img_name']
-
-            # label = np.zeros_like(cope_mask)
-            # label[cope_mask == 223] = 1
-            # label[cope_mask == 255] = 2
-            mask[-2:, :, :] = poly_mask
-            mask[-3][poly_mask[0]+poly_mask[1] == 0] = 1
+            poly_mask = np.eye(3)[target['poly_mask']].transpose(2, 0, 1)
+            poly_mask = torch.from_numpy(poly_mask)
+            mask[-3:, :, :] = poly_mask
+            # mask[-3][poly_mask[0]+poly_mask[1] == 0] = 1
         target['mask'] = mask
         target['transforms'].append('GenerateHeatmap')
         return img, target
