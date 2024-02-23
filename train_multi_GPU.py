@@ -7,63 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import transforms as T
+from transforms import get_transform
 from dataSet import IRDDataset
-from src import UNet, u2net, MobileV3Unet, VGG16UNet, resnet_unet
 from train_utils import *
-
-
-class SegmentationPresetTrain:
-    def __init__(self, base_size, task='landmark', var=40,  max_value=8,
-                 mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
-        min_size = int(0.8 * base_size)
-        max_size = int(1 * base_size)
-
-        # 这些transforms都是自己写的  T.RandomResize(min_size, max_size)
-        # 将图片左边和右边裁去1/6，下方裁去1/3
-        # trans = [T.MyCrop(left_size=1/6,right_size=1/6, bottom_size=1/3)]
-        # trans = [T.RightCrop(2/3)]
-        trans = []
-        # if hflip_prob > 0:
-        #     trans.append(T.RandomHorizontalFlip(hflip_prob))
-        trans.extend([
-            T.RandomResize(min_size, max_size, resize_ratio=1, shrink_ratio=1),
-            T.RandomHorizontalFlip(0.5),
-            T.RandomVerticalFlip(0.5),
-            # T.RandomRotation(10, rotate_ratio=0.7, expand_ratio=0.7),
-            T.GenerateMask(task=task, var=var, max_value=max_value),
-            T.ToTensor(),
-            T.Normalize(mean=mean, std=std),
-            T.MyPad([base_size])
-        ])
-
-        self.transforms = T.Compose(trans)
-
-    def __call__(self, img, target):
-        return self.transforms(img, target)
-
-
-class SegmentationPresetEval:
-    def __init__(self, base_size, task='landmark', var=40,  max_value=8,
-                 mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
-        self.transforms = T.Compose([
-            T.RandomResize(base_size, base_size, resize_ratio=1, shrink_ratio=0),
-            # T.Resize([base_size]),
-            T.GenerateMask(task=task, var=var, max_value=max_value),
-            T.ToTensor(),
-            T.Normalize(mean=mean, std=std),
-            T.MyPad([base_size])
-        ])
-
-    def __call__(self, img, target):
-        return self.transforms(img, target)
-
-
-def get_transform(train, base_size=256, task='landmark', var=40, max_value=8, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
-    if train:
-        return SegmentationPresetTrain(base_size, task, var, max_value, mean=mean, std=std)
-    else:
-        return SegmentationPresetEval(base_size, task, var, max_value, mean=mean, std=std)
 
 
 def main(args):
@@ -81,7 +27,7 @@ def main(args):
     task = args.task
     assert task in ['landmark', 'poly', 'all'], "task must in ['landmark', 'poly', 'all']"
     num_classes = 2 if task == 'landmark' else 3 if task == 'poly' else 5
-    base_size = args.base_size  # 训练使用的特征图大小
+    input_size = args.input_size  # 训练使用的特征图大小
     var = args.var
     position_type = args.position_type
     output_dir = os.path.join(os.path.dirname(args.output_dir), task, os.path.basename(args.output_dir))
@@ -93,10 +39,10 @@ def main(args):
 
     # init dataset
     train_dataset = IRDDataset(data_type='train', position_type=position_type, other_data=args.other_data, task=task,
-                               transforms=get_transform(train=True, base_size=base_size, task=task,
+                               transforms=get_transform(train=True, input_size=input_size, task=task,
                                                         var=var, max_value=args.max_value, mean=mean, std=std))
     val_dataset = IRDDataset(data_type='val', position_type=position_type, other_data=args.other_data, task=task,
-                             transforms=get_transform(train=False, base_size=base_size, task=task,
+                             transforms=get_transform(train=False, input_size=input_size, task=task,
                                                       var=var, max_value=args.max_value, mean=mean, std=std))
 
     print("Creating data loaders")
@@ -120,7 +66,7 @@ def main(args):
     # create model num_classes equal background + foreground classes
 
     model = create_model(num_classes=num_classes, in_channel=3, base_c=args.base_c, model_name=args.model_name,
-                         input_size=args.base_size)
+                         input_size=input_size)
     model.to(device)
 
     if args.sync_bn and args.device != 'mps':
@@ -331,7 +277,7 @@ if __name__ == "__main__":
 
     """ model config """
     parser.add_argument('--base_c', default=16, type=int, help='model base channel')
-    parser.add_argument('--base-size', default=256, type=int, help='model input size')
+    parser.add_argument('--input_size', default=[256, 256], nargs='+', type=int, help='input model size: [h, w]')
     parser.add_argument('--model_name', default='unet', type=str)
 
     """ training config: lr, lr scheduler, epoch, optimizer, """

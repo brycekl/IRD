@@ -4,27 +4,58 @@ import random
 import cv2
 import numpy as np
 import torch
+from typing import Tuple
 from PIL import Image
 from torchvision import transforms as T
 from torchvision.transforms import functional as F
 from scipy import ndimage
 
 
-def pad_if_smaller(img, size, fill=0):
-    # 如果图像最小边长小于给定size，则用数值fill进行padding
-    if isinstance(img, torch.Tensor):
-        img_size = img.shape[-2:]
-    elif isinstance(img, Image.Image):
-        img_size = img.size  # .size为Image里的方法
+class SegmentationPresetTrain:
+    def __init__(self, input_size, task='landmark', var=40,  max_value=8,
+                 mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+
+        trans = []
+        trans.extend([
+            # RandomResize(min_size, max_size, resize_ratio=1, shrink_ratio=1),
+            AffineTransform(rotation=(-20, 30), input_size=input_size, resize_low_high=[0.8, 1]),
+            RandomHorizontalFlip(0.5),
+            RandomVerticalFlip(0.5),
+            # RandomRotation(10, rotate_ratio=0.7, expand_ratio=0.7),
+            GenerateMask(task=task, var=var, max_value=max_value),
+            ToTensor(),
+            Normalize(mean=mean, std=std),
+            MyPad(input_size)
+        ])
+
+        self.transforms = Compose(trans)
+
+    def __call__(self, img, target):
+        return self.transforms(img, target)
+
+
+class SegmentationPresetEval:
+    def __init__(self, input_size, task='landmark', var=40,  max_value=8,
+                 mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+        self.transforms = Compose([
+            # RandomResize(base_size, base_size, resize_ratio=1, shrink_ratio=0),
+            # Resize([base_size]),
+            AffineTransform(input_size=input_size),
+            GenerateMask(task=task, var=var, max_value=max_value),
+            ToTensor(),
+            Normalize(mean=mean, std=std),
+            MyPad(input_size)
+        ])
+
+    def __call__(self, img, target):
+        return self.transforms(img, target)
+
+
+def get_transform(train, input_size=(256, 256), task='landmark', var=40, max_value=8, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+    if train:
+        return SegmentationPresetTrain(input_size, task, var, max_value, mean=mean, std=std)
     else:
-        raise '图像类型错误'
-    min_size = min(img_size)
-    if min_size < size:
-        ow, oh = img_size
-        padh = size - oh if oh < size else 0
-        padw = size - ow if ow < size else 0
-        img = F.pad(img, (0, 0, padw, padh), fill=fill)
-    return img
+        return SegmentationPresetEval(input_size, task, var, max_value, mean=mean, std=std)
 
 
 class Compose(object):
@@ -76,9 +107,9 @@ class RandomHorizontalFlip(object):
 
     def __call__(self, image, target):
         if random.random() < self.flip_prob:
-            image = F.hflip(image)
-            target['poly_mask'] = F.hflip(target['poly_mask'])
-            w, h = image.size
+            image = np.ascontiguousarray(np.flip(image, axis=[1]))
+            target['poly_mask'] = np.ascontiguousarray(np.flip(target['poly_mask'], axis=[1]))
+            h, w = image.shape[:2]
             target['landmark'] = {i: [w - j[0], j[1]] for i, j in target['landmark'].items()}
             target['transforms'].append('RandomHorizontalFlip')
             target['h_flip'] = True
@@ -91,9 +122,9 @@ class RandomVerticalFlip(object):
 
     def __call__(self, image, target):
         if random.random() < self.flip_prob:
-            image = F.vflip(image)
-            target['poly_mask'] = F.vflip(target['poly_mask'])
-            w, h = image.size
+            image = np.ascontiguousarray(np.flip(image, axis=[0]))
+            target['poly_mask'] = np.ascontiguousarray(np.flip(target['poly_mask'], axis=[0]))
+            h, w = image.shape[:2]
             target['landmark'] = {i: [j[0], h - j[1]] for i, j in target['landmark'].items()}
             target['transforms'].append('RandomVerticalFlip')
         return image, target
@@ -105,12 +136,28 @@ class RandomCrop(object):
 
     def __call__(self, image, target):
         # 未完成
-        image = pad_if_smaller(image, self.size)
-        target = pad_if_smaller(target, self.size, fill=255)
+        image = self.pad_if_smaller(image, self.size)
+        target = self.pad_if_smaller(target, self.size, fill=255)
         crop_params = T.RandomCrop.get_params(image, (self.size, self.size))
         image = F.crop(image, *crop_params)
         target = F.crop(target, *crop_params)
         return image, target
+
+    def pad_if_smaller(self, img, size, fill=0):
+        # 如果图像最小边长小于给定size，则用数值fill进行padding
+        if isinstance(img, torch.Tensor):
+            img_size = img.shape[-2:]
+        elif isinstance(img, Image.Image):
+            img_size = img.size  # .size为Image里的方法
+        else:
+            raise '图像类型错误'
+        min_size = min(img_size)
+        if min_size < size:
+            ow, oh = img_size
+            padh = size - oh if oh < size else 0
+            padw = size - ow if ow < size else 0
+            img = F.pad(img, (0, 0, padw, padh), fill=fill)
+        return img
 
 
 class CenterCrop(object):
@@ -394,22 +441,22 @@ class GenerateMask(object):
     def __call__(self, img, target):
         # generate mask according to the task type
         num_c = 2 if self.task == 'landmark' else 3 if self.task == 'poly' else 5
-        mask = torch.zeros((num_c, *img.size[::-1]), dtype=torch.float)
+        mask = torch.zeros((num_c, *img.shape[:2]), dtype=torch.float)
         # generate landmark mask
         if self.task in ['landmark', 'all']:
-            landmark_mask = torch.zeros((2, *img.size[::-1]), dtype=torch.float)
+            landmark_mask = torch.zeros((2, *img.shape[:2]), dtype=torch.float)
             # 生成landmark, landmark的误差在int()处
             landmark = {i: [int(target['landmark'][i][0] + 0.5), int(target['landmark'][i][1] + 0.5)] for i in
                         target['landmark']}
             # 根据landmark 绘制高斯热图 （进行点分割）
             for label in landmark:
                 point = landmark[label]
-                temp_heatmap = self.__make_2d_heatmap(point, img.size[::-1], var=self.var, max_value=self.max_value)
+                temp_heatmap = self.__make_2d_heatmap(point, img.shape[:2], var=self.var, max_value=self.max_value)
                 landmark_mask[label - 5] = temp_heatmap
             mask[:2, :, :] = landmark_mask
         # generate poly mask, to avoid anno mistakes, check the annotation data
         if self.task in ['poly', 'all']:
-            poly_mask = torch.zeros((2, *img.size[::-1]), dtype=torch.float)
+            poly_mask = torch.zeros((2, *img.shape[:2]), dtype=torch.float)
             cope_mask = np.asarray(target['poly_mask'])
             # 共有两种合格格式，
             # 不直接用233/255判断，怕医生标错区域
@@ -477,3 +524,91 @@ class GenerateMask(object):
         if max_value is not None:
             heatmap = heatmap * max_value
         return heatmap
+
+
+def affine_points(pt, t):
+    ones = np.ones((pt.shape[0], 1), dtype=float)
+    pt = np.concatenate([pt, ones], axis=1).T
+    new_pt = np.dot(t, pt)
+    return new_pt.T
+
+
+class AffineTransform(object):
+    """scale+rotation"""
+    # 仿射变换最重要的是计算变换矩阵
+    # opencv可以根据三个点变换前后的对应关系自动求解：affine_matrix = cv2.getAffineTransform(src, dst)
+    # 然后使用cv2.warpAffine()进行仿射变换
+    def __init__(self,
+                 input_size: Tuple[int, int] = (192, 256),  # 输入网络的图片大小 （h*w）
+                 scale: Tuple[float, float] = None,  # e.g. (0.65, 1.35) 将图片放大或缩小的比例
+                 rotation: Tuple[int, int] = None,   # e.g. (-45, 45)  将图片旋转的角度
+                 resize_low_high=(1, 1),  # 对输入网络的大小resize，比例从low-high中随机采样
+                 heatmap_shrink_rate: int = 1):  # heatmap缩小尺寸，如hrnet会将预测的heatmap缩小
+        self.scale = scale
+        self.rotation = rotation
+        self.input_size = input_size
+        self.heatmap_shrink_rate = heatmap_shrink_rate
+        self.resize_low_high = resize_low_high
+
+    def __call__(self, img, target):
+        resize_ratio = np.random.uniform(*self.resize_low_high)
+        src_xmax, src_xmin, src_ymax, src_ymin = img.size[0], 0, img.size[1], 0
+        # 将长边(w或h), resize到resize_ratio * 256  todo 不使用256大小
+        input_h, input_w = self.input_size
+        self.input_size = [int(src_ymax/src_xmax*(256*resize_ratio)), int(256*resize_ratio)] \
+            if src_xmax > src_ymax \
+            else [int(256*resize_ratio), int(src_xmax/src_ymax*(256*resize_ratio))]
+        src_w = src_xmax - src_xmin
+        src_h = src_ymax - src_ymin
+        src_center = np.array([(src_xmin + src_xmax) / 2, (src_ymin + src_ymax) / 2])
+        src_p2 = src_center + np.array([0, -src_h / 2])  # top middle
+        src_p3 = src_center + np.array([src_w / 2, 0])   # right middle
+
+        dst_center = np.array([(self.input_size[1] - 1) / 2, (self.input_size[0] - 1) / 2])
+        dst_p2 = np.array([(self.input_size[1] - 1) / 2, 0])  # top middle
+        dst_p3 = np.array([self.input_size[1] - 1, (self.input_size[0] - 1) / 2])  # right middle
+
+        if self.scale is not None:
+            # scale < 1, 图像放大，区域内显示的图形内容变少， scale > 1，图像缩小，区域内显示的图像内容变多（填充黑边）
+            scale = random.uniform(*self.scale)
+            src_w = src_w * scale
+            src_h = src_h * scale
+            src_p2 = src_center + np.array([0, -src_h / 2])  # top middle
+            src_p3 = src_center + np.array([src_w / 2, 0])   # right middle
+
+        if self.rotation is not None:
+            angle = random.randint(*self.rotation)  # 角度制
+            angle = angle / 180 * math.pi  # 弧度制
+            src_p2 = src_center + np.array([src_h / 2 * math.sin(angle), -src_h / 2 * math.cos(angle)])
+            src_p3 = src_center + np.array([src_w / 2 * math.cos(angle), src_w / 2 * math.sin(angle)])
+
+        src = np.stack([src_center, src_p2, src_p3]).astype(np.float32)
+        dst = np.stack([dst_center, dst_p2, dst_p3]).astype(np.float32)
+
+        trans = cv2.getAffineTransform(src, dst)  # 计算正向仿射变换矩阵
+        dst /= self.heatmap_shrink_rate  # 网络预测的heatmap尺寸是输入图像的1/4
+        reverse_trans = cv2.getAffineTransform(dst, src)  # 计算逆向仿射变换矩阵，方便后续还原
+
+        # 对图像进行仿射变换
+        resize_img = cv2.warpAffine(np.array(img),
+                                    trans,
+                                    tuple(self.input_size[::-1]),  # [w, h]
+                                    flags=cv2.INTER_LINEAR)
+        target['poly_mask'] = cv2.warpAffine(np.array(target['poly_mask']), trans, tuple(self.input_size[::-1]),
+                                        flags=cv2.INTER_NEAREST)
+
+        affine_landmark = np.array([target['landmark'][5], target['landmark'][6]])
+        affine_landmark = affine_points(affine_landmark, trans) / self.heatmap_shrink_rate
+        target['landmark'][5] = affine_landmark[0]
+        target['landmark'][6] = affine_landmark[1]
+
+        # import matplotlib.pyplot as plt
+        # from draw_utils import draw_keypoints
+        # resize_img = draw_keypoints(resize_img, target["keypoints"])
+        # plt.imshow(resize_img)
+        # plt.show()
+
+        target["trans"] = trans
+        target["reverse_trans"] = reverse_trans
+        target['transforms'].append('AffineTransform')
+        return resize_img, target
