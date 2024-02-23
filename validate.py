@@ -8,6 +8,8 @@ import torch
 import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
+from scipy.ndimage import label
+from data_utils.visualize import plot_result
 
 from dataSet import get_name_data
 from train_multi_GPU import get_transform
@@ -18,8 +20,7 @@ from train_utils.distributed_utils import get_default_device
 def main():
     # init basic setting
     data_root = '../datas/IRD/COCO_style'
-    model_path = 'model/20240218/landmark/unet_keypoint_1_4-all_var40_6.551'
-    model_weight_name = 'best_model.pth'
+    model_path = 'model/20240222/poly/unet_seg_4-all_0.864'
     device = get_default_device()
     print("using {} device.".format(device))
     init_img = torch.zeros((1, 3, 256, 256), device=device)
@@ -28,11 +29,13 @@ def main():
     with open(os.path.join(model_path, 'config.json')) as reader:
         model_config = json.load(reader)
     task = model_config['task']
-    num_classes = 2 if task in ['landmark', 'poly'] else 4
+    num_classes = 2 if task == 'landmark' else 3 if task == 'poly' else 5
+    model_weight_name = 'best_model.pth' if task in ['landmark', 'all'] else 'best_dice_model.pth'
     position_type = model_config['position_type']
     model_name = model_config['model_name'] if model_config.get('model_name') else 'unet'
     model_base_c = model_config['base_c'] if model_config.get('base_c') else model_config['unet_bc']
-    base_size = model_config['base_size']  # 输入模型的图像尺寸
+    intput_size = model_config['input_size'] if model_config.get('input_size') \
+        else [model_config['base_size'], model_config['base_size']]  # 输入模型的图像尺寸
 
     # init model
     model = create_model(num_classes=num_classes, base_c=model_base_c, model_name=model_name)
@@ -49,8 +52,8 @@ def main():
     # init save result
     save_root = model_path.replace('model', 'result')
     restore_ori_size = True
-    for name in ['result', 'heatmap']:
-        os.makedirs(os.path.join(save_root, name), exist_ok=True)
+    for i in ['result', 'heatmap']:
+        os.makedirs(os.path.join(save_root, i), exist_ok=True)
     result = {'name': [], 'left_mse': [], 'right_mse': []} if task == 'landmark' else None
     result = {'name': [], 'left_dice': [], 'right_dice': []} if task == 'poly' else result
     result = {'name': [], 'left_mse': [], 'right_mse': [], 'left_dice': [],
@@ -63,49 +66,82 @@ def main():
 
         # get val data img and target
         ori_img, ori_landmark, ori_mask = get_name_data(data_root, name)
-        transforms = get_transform(train=False, base_size=base_size, task=task, var=model_config['var'],
+        transforms = get_transform(train=False, input_size=intput_size, task=task, var=model_config['var'],
                                    max_value=model_config['max_value'], mean=mean, std=std)
         input_img, target = transforms(ori_img, {'landmark': ori_landmark, 'poly_mask': ori_mask, 'data_type': 'val',
                                                  'transforms': [], 'h_flip': False})
         input_img = input_img.unsqueeze(0).to(device)
-        resize_w, resize_h = target['show_img'].size
-        show_img = np.array(target['show_img']) if not restore_ori_size else np.array(ori_img)
+        resize_h, resize_w = target['show_img'].shape[:2]
+        show_img = target['show_img'] if not restore_ori_size else np.array(ori_img)
 
         # run model, get output and remove padding
         output = model(input_img).to('cpu').detach()[0]
         output = np.array(output)[:, :resize_h, :resize_w]
 
+        # save the output result
+
+
+        # get pre result
+        landmark_pre, mask_pre = generate_pre_target(output, task, restore_ori_size, ori_img.size)
+        landmark_gt, mask_gt = {}, {}
+
         # analyse result
         if task in ['landmark', 'all']:
             landmark_gt = target['landmark'] if not restore_ori_size else ori_landmark
-            landmark_pre = {ind: [0, 0] for ind in landmark_gt}
-            for i, pre in enumerate(output[:2]):
-                pre = pre if not restore_ori_size else cv2.resize(pre, show_img.shape[:2][::-1])
-                left_right = 'left' if i == 0 else 'right'
-                y, x = np.where(pre == pre.max())
-                landmark_pre[i + 5] = [x[0], y[0]]
-                point = landmark_gt[i + 5]  # 使用没有经过int处理的坐标计算结果，与训练时统一
+            for i in landmark_pre:
+                left_right = 'left' if i == 5 else 'right'
+                point_pre = landmark_pre[i]
+                point_gt = landmark_gt[i]
                 result[left_right + '_mse'].append(
-                    math.sqrt(math.pow(x[0] - point[0], 2) + math.pow(y[0] - point[1], 2)))
-                # save heatmap result
-                plt.imsave(os.path.join(save_root, 'heatmap', name + f'_{left_right}.png'), np.array(pre))
+                    math.sqrt(math.pow(point_pre[0] - point_gt[0], 2) + math.pow(point_pre[1] - point_gt[1], 2)))
 
-            landmark_gt = {ind: [int(item[0] + 0.5), int(item[1] + 0.5)] for ind, item in landmark_gt.items()}
-            cv2.circle(show_img, landmark_gt[5], 1, [255, 0, 0], -1)
-            cv2.circle(show_img, landmark_gt[6], 1, [255, 0, 0], -1)
-            cv2.circle(show_img, landmark_pre[5], 1, [0, 255, 0], -1)
-            cv2.circle(show_img, landmark_pre[6], 1, [0, 255, 0], -1)
-            cv2.putText(show_img, f'left_mse: {round(result["left_mse"][-1], 2)}pix', [20, show_img.shape[0] - 35],
-                        cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 0, 255), 1)
-            cv2.putText(show_img, f'right_mse: {round(result["right_mse"][-1], 2)}pix', [20, show_img.shape[0] - 15],
-                        cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 255), 1)
-            show_img = Image.fromarray(show_img)
-            show_img.save(os.path.join(save_root, 'result', name + '.png'))
+            # landmark_gt = {ind: [int(item[0] + 0.5), int(item[1] + 0.5)] for ind, item in landmark_gt.items()}
+            # cv2.circle(show_img, landmark_gt[5], 1, [255, 0, 0], -1)
+            # cv2.circle(show_img, landmark_gt[6], 1, [255, 0, 0], -1)
+            # cv2.circle(show_img, landmark_pre[5], 1, [0, 255, 0], -1)
+            # cv2.circle(show_img, landmark_pre[6], 1, [0, 255, 0], -1)
+            # cv2.putText(show_img, f'left_mse: {round(result["left_mse"][-1], 2)}pix', [20, show_img.shape[0] - 35],
+            #             cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 0, 255), 1)
+            # cv2.putText(show_img, f'right_mse: {round(result["right_mse"][-1], 2)}pix', [20, show_img.shape[0] - 15],
+            #             cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 255), 1)
+            # show_img = Image.fromarray(show_img)
+            # show_img.save(os.path.join(save_root, 'result', name + '.png'))
 
         if task in ['poly', 'all']:
-            pass
+            mask_gt = np.array(target['mask'])[:, :resize_h, :resize_w] if not restore_ori_size \
+                else np.eye(3)[ori_mask].transpose(2, 0, 1)
+        plot_result(show_img, target={'landmark': landmark_gt, 'mask': mask_gt},
+                    pre_target={'landmark': landmark_pre, 'mask': mask_pre}, task=task,
+                    save_path=os.path.join(save_root, 'result'), title=name + '_os' if restore_ori_size else name)
     df = pd.DataFrame(result)
     df.to_excel(os.path.join(save_root, 'mse_mm.xlsx'), index=False)
+
+
+def generate_pre_target(output, task='landmark', restore_ori_size=False, ori_size=(0, 0)):
+    pre_landmark = {}
+    pre_mask = np.zeros((2, *output.shape[-2:])) if not restore_ori_size else np.zeros((2, *ori_size[::-1]))
+    resize_output = output if not restore_ori_size else np.zeros((output.shape[0], *ori_size[::-1]))
+
+    # restore to ori size
+    if restore_ori_size:
+        for ind, pre in enumerate(output):
+            resize_output[ind] = cv2.resize(pre, ori_size)
+
+    if task in ['landmark', 'all']:
+        for i, pre in enumerate(resize_output[:2]):
+            y, x = np.where(pre == pre.max())
+            pre_landmark[i + 5] = [x[0], y[0]]
+
+    if task in ['poly', 'all']:
+        pre_ = np.argmax(resize_output[-3:], axis=0)
+        for ind in range(1, 3):
+            label_ind = label(pre_ == ind)
+            if label_ind[1] > 1:
+                pre_mask[ind-1] = (label_ind[0] == np.argmax(np.bincount(label_ind[0].flatten())[1:]) + 1)
+            else:
+                pre_mask[ind-1] = label_ind[0]
+
+    return pre_landmark, pre_mask
 
 
 if __name__ == '__main__':

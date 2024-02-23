@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-from data_utils.visualize import show_img
+from data_utils.visualize import plot_result
 
 posture_label = {'PP': 9, 'SP': 10, 'ST': 11}
 position_label = {'B3': 12, 'U3': 13, 'U5': 14, 'UE': 15}
@@ -118,7 +118,7 @@ def get_name_data(data_root, name):
     landmark = {i['Label']: np.array(i['Position'])[:2] for i in landmark}
 
     # get mask
-    mask_path = os.path.join(data_root, 'masks', name + '_255.png')
+    mask_path = os.path.join(data_root, 'masks', name + '.png')
     poly_mask = Image.open(mask_path)
 
     return img, landmark, poly_mask
@@ -134,20 +134,22 @@ if __name__ == '__main__':
     trans = T.Compose([
         # T.RandomResize(int(0.8 * base_size), base_size),
         # T.RandomResize(int(base_size*0.8), base_size, resize_ratio=1, shrink_ratio=1),
-        T.RandomResize(base_size, base_size, resize_ratio=1, shrink_ratio=0),
+        # T.RandomResize(base_size, base_size, resize_ratio=1, shrink_ratio=0.5),
         # T.Resize([base_size]),
-        T.RandomHorizontalFlip(1),
-        T.RandomVerticalFlip(1),
+        T.AffineTransform(rotation=(-20, 30), input_size=(256, 256), resize_low_high=[0.8, 1]),
+        T.RandomHorizontalFlip(0.5),
+        T.RandomVerticalFlip(0.5),
         T.GenerateMask(task='all'),
         T.ToTensor(),
         T.Normalize(mean=mean, std=std),
-        # T.MyPad([base_size])
+        T.MyPad([base_size])
     ])
-    mydata = IRDDataset(data_type='train', transforms=trans)
-    # a,b = mydata[0]
-    # c =1
+    mydata = IRDDataset(data_type='train', transforms=trans, other_data=True)
+
     for i in range(len(mydata)):
         img, target = mydata[i]
-        show_img(target['show_img'], target, task='all')
+        vis_img = np.ascontiguousarray(np.asarray(img.permute(1, 2, 0))) if isinstance(trans.transforms[-1], T.MyPad) \
+            else target['show_img']
+        plot_result(vis_img, target, task='all')
         print(i, target['img_name'])
     s = 1

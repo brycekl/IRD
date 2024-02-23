@@ -2,30 +2,31 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
 
 
-def show_img(img, target, pre_target=None, task='poly', title='', save_path=None):
+def plot_result(img, target, pre_target=None, task='poly', title='', save_path=None):
     """
     可视化target, target中landmark和mask显示红色，pre_target中landmark和mask显示绿色
     para:
         img: the img for show the result
         target: C*H*W, {'landmark': {...}, 'mask': ...}
     """
-    img = np.array(img)
+    if isinstance(img, Image.Image):
+        img = np.array(img)
     img = (img - img.min()) / (img.max() - img.min())
-
-    # visualize target
+    poly_factor = 0.75 if pre_target else 0.5
 
     if task in ['poly', 'all']:
         mask_gt = target['mask'][-2:]
         for mask_gt_item in mask_gt:
             mask_ind = np.where(mask_gt_item == 1)
-            img[mask_ind[0], mask_ind[1], 0] = img[mask_ind[0], mask_ind[1], 0] * 0.5 + 0.5  # 花式索引
+            img[mask_ind[0], mask_ind[1], 0] = img[mask_ind[0], mask_ind[1], 0] * poly_factor + (1-poly_factor)  # 花式索引
         if pre_target:
             mask_pre = pre_target['mask'][-2:]
-            for mask_gt_item in mask_pre:
-                mask_ind = np.where(mask_gt_item == 1)
-                img[mask_ind[0], mask_ind[1], 1] = img[mask_ind[0], mask_ind[1], 1] * 0.5 + 0.5
+            for mask_pre_item in mask_pre:
+                mask_ind = np.where(mask_pre_item == 1)
+                img[mask_ind[0], mask_ind[1], 1] = img[mask_ind[0], mask_ind[1], 1] * poly_factor + (1-poly_factor)
 
     # should first visualize mask and then landmark
     if task in ['landmark', 'all']:
