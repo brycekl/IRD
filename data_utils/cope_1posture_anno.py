@@ -161,10 +161,10 @@ if __name__ == '__main__':
     used for cope the data with four position of PP posture
     """
     root = '../../datas/IRD/data_backup/267-290gaoya'
-    img_root = '../../datas/IRD/{}/images'.format(root.split('/')[-1])
-    json_root = '../../datas/IRD/{}/jsons'.format(root.split('/')[-1])
-    mask_root = '../../datas/IRD/{}/masks'.format(root.split('/')[-1])
-    pair_root = '../../datas/IRD/{}/pair_files'.format(root.split('/')[-1])
+    img_root = '../../datas/IRD/{}/images'.format('COCO_style')
+    json_root = '../../datas/IRD/{}/jsons'.format('COCO_style')
+    mask_root = '../../datas/IRD/{}/masks'.format('COCO_style')
+    pair_root = '../../datas/IRD/{}/pair_files'.format('COCO_style')
     # 错误类型：标注文件数量错误，单张图片未标注两个点，单张图片未标注两个区域，整个文件夹未标注四个position
     error_info = {'anno_num_error': [], 'no_two_landmark': [], 'no_two_region': [], 'no_all_position': {},
                   'landmark_anno_error': []}   # todo 在此处定义的变量为模块级别的变量，在整个模块内可见

@@ -113,7 +113,6 @@ def cope_json(json_path, save_path, file_name, titai, pair_path=None, all_titai=
         polys[ind] = np.array(polys[ind])
     if keypoints[5][0] > keypoints[6][0] or polys[7].T[0].max() > polys[8].T[0].min():
         error_info['landmark_anno_error'].append(file_name)
-        return
 
     # 写入json文件
     with open(os.path.join(save_path, file_name + '.json'), 'w') as f:
