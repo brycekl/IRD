@@ -12,13 +12,13 @@ from scipy import ndimage
 
 
 class SegmentationPresetTrain:
-    def __init__(self, input_size, task='landmark', var=40,  max_value=8,
+    def __init__(self, input_size, task='landmark', var=40,  max_value=8, stretch=True,
                  mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
 
         trans = []
         trans.extend([
             # RandomResize(min_size, max_size, resize_ratio=1, shrink_ratio=1),
-            AffineTransform(rotation=(-20, 30), input_size=input_size, resize_low_high=[0.8, 1]),
+            AffineTransform(rotation=(-20, 30), input_size=input_size, resize_low_high=[0.8, 1], stretch=stretch),
             RandomHorizontalFlip(0.5),
             RandomVerticalFlip(0.5),
             # RandomRotation(10, rotate_ratio=0.7, expand_ratio=0.7),
@@ -35,12 +35,12 @@ class SegmentationPresetTrain:
 
 
 class SegmentationPresetEval:
-    def __init__(self, input_size, task='landmark', var=40,  max_value=8,
+    def __init__(self, input_size, task='landmark', var=40,  max_value=8, stretch=True,
                  mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
         self.transforms = Compose([
             # RandomResize(base_size, base_size, resize_ratio=1, shrink_ratio=0),
             # Resize([base_size]),
-            AffineTransform(input_size=input_size),
+            AffineTransform(input_size=input_size, stretch=stretch),
             GenerateMask(task=task, var=var, max_value=max_value),
             ToTensor(),
             Normalize(mean=mean, std=std),
@@ -457,6 +457,8 @@ class GenerateMask(object):
         # generate poly mask, to avoid anno mistakes, check the annotation data
         if self.task in ['poly', 'all']:
             poly_mask = np.eye(3)[target['poly_mask']].transpose(2, 0, 1)
+            # if target['h_flip']:
+            #     poly_mask[[1, 2], ::] = poly_mask[[2, 1], ::]
             poly_mask = torch.from_numpy(poly_mask)
             mask[-3:, :, :] = poly_mask
             # mask[-3][poly_mask[0]+poly_mask[1] == 0] = 1
@@ -505,23 +507,29 @@ class AffineTransform(object):
                  scale: Tuple[float, float] = None,  # e.g. (0.65, 1.35) 将图片放大或缩小的比例
                  rotation: Tuple[int, int] = None,   # e.g. (-45, 45)  将图片旋转的角度
                  resize_low_high=(1, 1),  # 对输入网络的大小resize，比例从low-high中随机采样
-                 heatmap_shrink_rate: int = 1):  # heatmap缩小尺寸，如hrnet会将预测的heatmap缩小
+                 heatmap_shrink_rate: int = 1,  # heatmap缩小尺寸，如hrnet会将预测的heatmap缩小
+                 stretch: bool = False,  # resize的过程中，拉伸图像不padding，保持长宽比后padding会引入噪声
+                 ):
         self.scale = scale
         self.rotation = rotation
         self.input_size = input_size
         self.heatmap_shrink_rate = heatmap_shrink_rate
         self.resize_low_high = resize_low_high
+        self.stretch = stretch
 
     def __call__(self, img, target):
         resize_ratio = np.random.uniform(*self.resize_low_high)
         src_xmax, src_xmin, src_ymax, src_ymin = img.size[0], 0, img.size[1], 0
         # 将长边(w或h), resize到resize_ratio * 256  todo 不使用256大小
-        input_h, input_w = self.input_size
-        self.input_size = [int(src_ymax/src_xmax*(256*resize_ratio)), int(256*resize_ratio)] \
-            if src_xmax > src_ymax \
-            else [int(256*resize_ratio), int(src_xmax/src_ymax*(256*resize_ratio))]
+        if self.stretch:
+            self.input_size = [int(i * resize_ratio+0.5) for i in self.input_size]
+        else:
+            self.input_size = [int(src_ymax/src_xmax*(256*resize_ratio)), int(256*resize_ratio)] \
+                if src_xmax > src_ymax \
+                else [int(256*resize_ratio), int(src_xmax/src_ymax*(256*resize_ratio))]
         src_w = src_xmax - src_xmin
         src_h = src_ymax - src_ymin
+        # 注意放射变换src和dst中坐标为:w,h, numpy中为h,w
         src_center = np.array([(src_xmin + src_xmax) / 2, (src_ymin + src_ymax) / 2])
         src_p2 = src_center + np.array([0, -src_h / 2])  # top middle
         src_p3 = src_center + np.array([src_w / 2, 0])   # right middle
