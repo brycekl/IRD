@@ -66,7 +66,7 @@ class IntermediateLayerGetter(nn.ModuleDict):
 class MobileV3Unet(nn.Module):
     def __init__(self, num_classes, pretrain_backbone: bool = False):
         super(MobileV3Unet, self).__init__()
-        backbone = mobilenet_v3_large(pretrained=pretrain_backbone)
+        backbone = mobilenet_v3_large()
 
         # if pretrain_backbone:
         #     # 载入mobilenetv3 large backbone预训练权重

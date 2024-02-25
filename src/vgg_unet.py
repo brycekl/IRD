@@ -154,7 +154,7 @@ class IntermediateLayerGetter(nn.ModuleDict):
 class VGG16UNet(nn.Module):
     def __init__(self, num_classes, pretrain_backbone: bool = False):
         super(VGG16UNet, self).__init__()
-        backbone = vgg16_bn(pretrained=pretrain_backbone)
+        backbone = vgg16_bn()
 
         # if pretrain_backbone:
         #     # 载入vgg16_bn预训练权重
