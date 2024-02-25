@@ -7,6 +7,7 @@ import cv2
 import torch
 import matplotlib.pyplot as plt
 import pandas as pd
+import shutil
 from PIL import Image
 from scipy.ndimage import label
 from data_utils.visualize import plot_result
@@ -15,6 +16,8 @@ from dataSet import get_name_data
 from train_multi_GPU import get_transform
 from train_utils.init_model_utils import create_model
 from train_utils.distributed_utils import get_default_device
+from train_utils.dice_coefficient_loss import multiclass_dice_coeff
+from torch.nn.functional import softmax
 
 
 def main():
@@ -52,12 +55,12 @@ def main():
     # init save result
     save_root = model_path.replace('model', 'result')
     restore_ori_size = True
-    for i in ['result', 'heatmap']:
+    for i in ['result', 'heatmap', 'ori_img']:
         os.makedirs(os.path.join(save_root, i), exist_ok=True)
     result = {'name': [], 'left_mse': [], 'right_mse': []} if task == 'landmark' else None
-    result = {'name': [], 'left_dice': [], 'right_dice': []} if task == 'poly' else result
-    result = {'name': [], 'left_mse': [], 'right_mse': [], 'left_dice': [],
-              'right_dice': []} if task == 'all' else result
+    result = {'name': [], 'left_dice': [], 'right_dice': [], 'dice': []} if task == 'poly' else result
+    result = {'name': [], 'left_mse': [], 'right_mse': [], 'left_dice': [], 'right_dice': [], 'dice': []} \
+        if task == 'all' else result
 
     # begin to predict
     for i, name in enumerate(data_list['val']):
@@ -78,8 +81,9 @@ def main():
         output = model(input_img).to('cpu').detach()[0]
         output = np.array(output)[:, :resize_h, :resize_w]
 
-        # save the output result
-
+        # save the output heatmap result
+        for pre_ind, pre_channel in enumerate(output):
+            plt.imsave(os.path.join(save_root, 'heatmap', name + f'_{str(pre_ind)}.png'), pre_channel)
 
         # get pre result
         landmark_pre, mask_pre = generate_pre_target(output, task, restore_ori_size, ori_img.size)
@@ -95,24 +99,22 @@ def main():
                 result[left_right + '_mse'].append(
                     math.sqrt(math.pow(point_pre[0] - point_gt[0], 2) + math.pow(point_pre[1] - point_gt[1], 2)))
 
-            # landmark_gt = {ind: [int(item[0] + 0.5), int(item[1] + 0.5)] for ind, item in landmark_gt.items()}
-            # cv2.circle(show_img, landmark_gt[5], 1, [255, 0, 0], -1)
-            # cv2.circle(show_img, landmark_gt[6], 1, [255, 0, 0], -1)
-            # cv2.circle(show_img, landmark_pre[5], 1, [0, 255, 0], -1)
-            # cv2.circle(show_img, landmark_pre[6], 1, [0, 255, 0], -1)
-            # cv2.putText(show_img, f'left_mse: {round(result["left_mse"][-1], 2)}pix', [20, show_img.shape[0] - 35],
-            #             cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 0, 255), 1)
-            # cv2.putText(show_img, f'right_mse: {round(result["right_mse"][-1], 2)}pix', [20, show_img.shape[0] - 15],
-            #             cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 255), 1)
-            # show_img = Image.fromarray(show_img)
-            # show_img.save(os.path.join(save_root, 'result', name + '.png'))
-
         if task in ['poly', 'all']:
             mask_gt = np.array(target['mask'])[:, :resize_h, :resize_w] if not restore_ori_size \
                 else np.eye(3)[ori_mask].transpose(2, 0, 1)
+            dice_gt = target['mask'][-3:, :resize_h, :resize_w].unsqueeze(0)
+            dices = np.array(multiclass_dice_coeff(softmax(torch.from_numpy(output[-3:, :, :]), 0).unsqueeze(0), dice_gt))
+            result['dice'].append(dices.mean())
+            result['left_dice'].append(dices[1])
+            result['right_dice'].append(dices[2])
+
+        # plot pre result and save it
         plot_result(show_img, target={'landmark': landmark_gt, 'mask': mask_gt},
                     pre_target={'landmark': landmark_pre, 'mask': mask_pre}, task=task,
                     save_path=os.path.join(save_root, 'result'), title=name + '_os' if restore_ori_size else name)
+        # copy original img for analyse
+        shutil.copyfile(os.path.join(data_root, 'images', name+'.png'), os.path.join(save_root, 'ori_img', name+'.png'))
+
     df = pd.DataFrame(result)
     df.to_excel(os.path.join(save_root, 'mse_mm.xlsx'), index=False)
 
