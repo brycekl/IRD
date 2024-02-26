@@ -113,13 +113,16 @@ def check_mask(img_array, file_name=None):
     if label[1] == 2:  # two region
         left = 1 if np.median(np.where(label[0] == 1)[1]) < np.median(np.where(label[0] == 2)[1]) else 2
         right = 2 if left == 1 else 1
+        mask[label[0] == left] = 1
+        mask[label[0] == right] = 2
     # one or more region of poly
     else:
         label_ = np.zeros_like(label[0])
         mask_value = np.unique(img_array)
         if len(mask_value) == 3:
             # just save the biggest region
-            for value in mask_value[1:]:
+            for value in mask_value:
+                if value == 0: continue
                 value_mask = img_array == value
                 value_label = ndimage.label(value_mask)
                 if value_label[1] > 1:
@@ -130,12 +133,12 @@ def check_mask(img_array, file_name=None):
             # save result in poly_mask
             left = 1 if np.median(np.where(label_ == 1)[1]) < np.median(np.where(label_ == 2)[1]) else 2
             right = 2 if left == 1 else 1
+            mask[label_ == left] = 1
+            mask[label_ == right] = 2
         else:
             # if len(legal_region_ind[0]) - 1 != 2 and len(np.unique(img_array)) - 1 != 2:  # 可能会有标注重合的情况
             error_info['no_two_region'].append(file_name)
 
-    mask[label[0] == left] = 1
-    mask[label[0] == right] = 2
     return mask
 
 
@@ -172,6 +175,7 @@ if __name__ == '__main__':
     file_name_list = os.listdir(root)
     # 对每个患者，共12个体态进行处理
     for dir_name in file_name_list:
+        if dir_name == '.DS_Store': continue
         dir_path = os.path.join(root, dir_name)
         images, all_titai = [], {}
         # 获取该患者的所有图片，并对标注文件解压tar包

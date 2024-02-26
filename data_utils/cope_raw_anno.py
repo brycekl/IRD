@@ -186,6 +186,7 @@ if __name__ == '__main__':
     file_name_list = os.listdir(root)
     # 对每个患者，共12个体态进行处理
     for dir_name in file_name_list:
+        if dir_name == '.DS_Store': continue
         dir_path = os.path.join(root, dir_name)
         images, titai, all_titai = [], {}, {}
         # 获取该患者的所有图片，并对标注文件解压tar包
