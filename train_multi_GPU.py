@@ -274,9 +274,10 @@ if __name__ == "__main__":
     parser.add_argument('--max_value', default=8, type=int, help='the max value of heatmap')
     parser.add_argument('-b', '--batch-size', default=32, type=int,
                         help='images per gpu, the total batch size is $NGPU x batch_size')
+    parser.add_argument('--stretch', action='store_true', help='if or not stretch while affine trans.')
 
     """ model config """
-    parser.add_argument('--base_c', default=16, type=int, help='model base channel')
+    parser.add_argument('--base_c', default=32, type=int, help='model base channel')
     parser.add_argument('--input_size', default=[256, 256], nargs='+', type=int, help='input model size: [h, w]')
     parser.add_argument('--model_name', default='unet', type=str)
 

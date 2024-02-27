@@ -51,11 +51,11 @@ class SegmentationPresetEval:
         return self.transforms(img, target)
 
 
-def get_transform(train, input_size=(256, 256), task='landmark', var=40, max_value=8, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+def get_transform(train, input_size=(256, 256), task='landmark', var=40, max_value=8, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), stretch=True):
     if train:
-        return SegmentationPresetTrain(input_size, task, var, max_value, mean=mean, std=std)
+        return SegmentationPresetTrain(input_size, task, var, max_value, stretch=stretch, mean=mean, std=std)
     else:
-        return SegmentationPresetEval(input_size, task, var, max_value, mean=mean, std=std)
+        return SegmentationPresetEval(input_size, task, var, max_value, stretch=stretch, mean=mean, std=std)
 
 
 class Compose(object):
@@ -457,8 +457,8 @@ class GenerateMask(object):
         # generate poly mask, to avoid anno mistakes, check the annotation data
         if self.task in ['poly', 'all']:
             poly_mask = np.eye(3)[target['poly_mask']].transpose(2, 0, 1)
-            # if target['h_flip']:
-            #     poly_mask[[1, 2], ::] = poly_mask[[2, 1], ::]
+            if target['h_flip']:   # 保持左右
+                poly_mask[[1, 2], ::] = poly_mask[[2, 1], ::]
             poly_mask = torch.from_numpy(poly_mask)
             mask[-3:, :, :] = poly_mask
             # mask[-3][poly_mask[0]+poly_mask[1] == 0] = 1
@@ -520,11 +520,19 @@ class AffineTransform(object):
     def __call__(self, img, target):
         resize_ratio = np.random.uniform(*self.resize_low_high)
         src_xmax, src_xmin, src_ymax, src_ymin = img.size[0], 0, img.size[1], 0
-        # 将长边(w或h), resize到resize_ratio * 256  todo 不使用256大小
-        if self.stretch:
-            self.input_size = [int(i * resize_ratio+0.5) for i in self.input_size]
+        """ resize 选项 """
+        # 1. 直接拉伸到self.input_size
+        # 2. 如果为训练集， 拉伸过程中缩小，后续使用padding
+        # 3. 保持长宽比，resize 过程中缩小，后续使用padding
+        if self.stretch:   # Fixme 拉伸时，如果resize缩小后再padding无法训练，dice loss会变为0
+            if np.random.uniform(0, 1) < 0.5 and target['data_type'] in ['train']:
+                input_size = [int(i * resize_ratio+0.5) for i in self.input_size]
+            else:
+                input_size = self.input_size
         else:
-            self.input_size = [int(src_ymax/src_xmax*(256*resize_ratio)), int(256*resize_ratio)] \
+            # 将长边(w或h), resize到resize_ratio * 256  todo 不使用256大小
+            # 保持长宽比时，一定需要padding，所以此时可以使用缩小
+            input_size = [int(src_ymax/src_xmax*(256*resize_ratio)), int(256*resize_ratio)] \
                 if src_xmax > src_ymax \
                 else [int(256*resize_ratio), int(src_xmax/src_ymax*(256*resize_ratio))]
         src_w = src_xmax - src_xmin
@@ -534,9 +542,9 @@ class AffineTransform(object):
         src_p2 = src_center + np.array([0, -src_h / 2])  # top middle
         src_p3 = src_center + np.array([src_w / 2, 0])   # right middle
 
-        dst_center = np.array([(self.input_size[1] - 1) / 2, (self.input_size[0] - 1) / 2])
-        dst_p2 = np.array([(self.input_size[1] - 1) / 2, 0])  # top middle
-        dst_p3 = np.array([self.input_size[1] - 1, (self.input_size[0] - 1) / 2])  # right middle
+        dst_center = np.array([(input_size[1] - 1) / 2, (input_size[0] - 1) / 2])
+        dst_p2 = np.array([(input_size[1] - 1) / 2, 0])  # top middle
+        dst_p3 = np.array([input_size[1] - 1, (input_size[0] - 1) / 2])  # right middle
 
         if self.scale is not None:
             # scale < 1, 图像放大，区域内显示的图形内容变少， scale > 1，图像缩小，区域内显示的图像内容变多（填充黑边）
@@ -562,10 +570,10 @@ class AffineTransform(object):
         # 对图像进行仿射变换
         resize_img = cv2.warpAffine(np.array(img),
                                     trans,
-                                    tuple(self.input_size[::-1]),  # [w, h]
+                                    tuple(input_size[::-1]),  # [w, h]
                                     flags=cv2.INTER_LINEAR)
-        target['poly_mask'] = cv2.warpAffine(np.array(target['poly_mask']), trans, tuple(self.input_size[::-1]),
-                                        flags=cv2.INTER_NEAREST)
+        target['poly_mask'] = cv2.warpAffine(np.array(target['poly_mask']), trans, tuple(input_size[::-1]),
+                                             flags=cv2.INTER_NEAREST)
 
         affine_landmark = np.array([target['landmark'][5], target['landmark'][6]])
         affine_landmark = affine_points(affine_landmark, trans) / self.heatmap_shrink_rate
