@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 
-def plot_result(img, target, pre_target=None, task='poly', title='', save_path=None):
+def plot_result(img, target, pre_target=None, task='poly', title='', save_path=None, show=False):
     """
     可视化target, target中landmark和mask显示红色，pre_target中landmark和mask显示绿色
     para:
@@ -44,6 +44,6 @@ def plot_result(img, target, pre_target=None, task='poly', title='', save_path=N
             os.makedirs(save_path)
         plt.imsave(os.path.join(save_path, title + '.png'), img)
         plt.close()
-    else:
+    if show:
         plt.imshow(img)
         plt.show()

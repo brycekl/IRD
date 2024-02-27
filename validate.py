@@ -23,7 +23,7 @@ from torch.nn.functional import softmax
 def main():
     # init basic setting
     data_root = '../datas/IRD/COCO_style'
-    model_path = 'model/20240222/poly/unet_seg_4-all_0.864'
+    model_path = 'model/20240224/poly/unet_seg_od_bc32_nlf_nstretch_4-all_0.912'
     device = get_default_device()
     print("using {} device.".format(device))
     init_img = torch.zeros((1, 3, 256, 256), device=device)
@@ -92,6 +92,7 @@ def main():
         # analyse result
         if task in ['landmark', 'all']:
             landmark_gt = target['landmark'] if not restore_ori_size else ori_landmark
+            # 计算mse用的与restore_ori_size匹配的landmark
             for i in landmark_pre:
                 left_right = 'left' if i == 5 else 'right'
                 point_pre = landmark_pre[i]
@@ -102,6 +103,7 @@ def main():
         if task in ['poly', 'all']:
             mask_gt = np.array(target['mask'])[:, :resize_h, :resize_w] if not restore_ori_size \
                 else np.eye(3)[ori_mask].transpose(2, 0, 1)
+            # 计算dice用的测试尺寸大小的结果
             dice_gt = target['mask'][-3:, :resize_h, :resize_w].unsqueeze(0)
             dices = np.array(multiclass_dice_coeff(softmax(torch.from_numpy(output[-3:, :, :]), 0).unsqueeze(0), dice_gt))
             result['dice'].append(dices.mean())
@@ -110,13 +112,13 @@ def main():
 
         # plot pre result and save it
         plot_result(show_img, target={'landmark': landmark_gt, 'mask': mask_gt},
-                    pre_target={'landmark': landmark_pre, 'mask': mask_pre}, task=task,
+                    pre_target={'landmark': landmark_pre, 'mask': mask_pre}, task=task, show=False,
                     save_path=os.path.join(save_root, 'result'), title=name + '_os' if restore_ori_size else name)
         # copy original img for analyse
         shutil.copyfile(os.path.join(data_root, 'images', name+'.png'), os.path.join(save_root, 'ori_img', name+'.png'))
 
     df = pd.DataFrame(result)
-    df.to_excel(os.path.join(save_root, 'mse_mm.xlsx'), index=False)
+    df.to_excel(os.path.join(save_root, f'{os.path.basename(model_path)}.xlsx'), index=False)
 
 
 def generate_pre_target(output, task='landmark', restore_ori_size=False, ori_size=(0, 0)):
@@ -138,6 +140,7 @@ def generate_pre_target(output, task='landmark', restore_ori_size=False, ori_siz
         pre_ = np.argmax(resize_output[-3:], axis=0)
         for ind in range(1, 3):
             label_ind = label(pre_ == ind)
+            # todo 只取了最大的分割区域，是否有利？？？
             if label_ind[1] > 1:
                 pre_mask[ind-1] = (label_ind[0] == np.argmax(np.bincount(label_ind[0].flatten())[1:]) + 1)
             else:
