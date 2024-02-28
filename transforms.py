@@ -18,7 +18,7 @@ class SegmentationPresetTrain:
         trans = []
         trans.extend([
             # RandomResize(min_size, max_size, resize_ratio=1, shrink_ratio=1),
-            AffineTransform(rotation=(-20, 30), input_size=input_size, resize_low_high=[0.8, 1], stretch=stretch),
+            AffineTransform(rotation=(-15, 15), input_size=input_size, resize_low_high=[0.8, 1], stretch=stretch),
             RandomHorizontalFlip(0.5),
             RandomVerticalFlip(0.5),
             # RandomRotation(10, rotate_ratio=0.7, expand_ratio=0.7),
@@ -453,6 +453,9 @@ class GenerateMask(object):
                 point = landmark[label]
                 temp_heatmap = self.__make_2d_heatmap(point, img.shape[:2], var=self.var, max_value=self.max_value)
                 landmark_mask[label - 5] = temp_heatmap
+            if target['h_flip']:  # 保持左右
+                landmark_mask[[0, 1], ::] = landmark_mask[[1, 0], ::]
+                target['landmark'][5], target['landmark'][6] = target['landmark'][6], target['landmark'][5]
             mask[:2, :, :] = landmark_mask
         # generate poly mask, to avoid anno mistakes, check the annotation data
         if self.task in ['poly', 'all']:
