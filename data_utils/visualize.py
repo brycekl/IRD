@@ -35,7 +35,7 @@ def plot_result(img, target, pre_target=None, task='poly', title='', save_path=N
             cv2.circle(img, point, 2, (1, 0, 0), -1)
         if pre_target:
             landmark_pre = {i: [int(j[0] + 0.5), int(j[1] + 0.5)] for i, j in pre_target['landmark'].items()}
-            for point in landmark_pre:
+            for point in landmark_pre.values():
                 cv2.circle(img, point, 2, (0, 1, 0), -1)
 
     plt.title(title)

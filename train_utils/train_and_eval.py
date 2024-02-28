@@ -81,6 +81,9 @@ def evaluate(model, data_loader, device, num_classes, weight=1):
                 # 计算mse
                 for i, data in enumerate(output[0, :2, :]):
                     data = data.to('cpu').detach()
+                    # 去除padding
+                    resize_h, resize_w = target['show_img'][0].shape[:2]
+                    data = data[:resize_h, :resize_w]
                     y, x = np.where(data == data.max())
                     point = target['landmark'][0][i + 5]  # label=i+8
                     mse[i + 5].append(math.sqrt(math.pow(x[0] - point[0], 2) + math.pow(y[0] - point[1], 2)))
