@@ -32,7 +32,7 @@ class IRDDataset(Dataset):
                 self.legal_wrong['landmark'].append(line.strip())
 
         # load position type and data type data from json file
-        with open('data_utils/data.json', 'r') as reader:
+        with open('data_utils/data_info.json', 'r') as reader:
             all_data = json.load(reader)
             self.data_list = all_data[position_type]
             self.train_info = self.data_list['train_info']

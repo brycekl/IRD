@@ -47,7 +47,7 @@ def main():
     model(init_img)
 
     # init dataset
-    with open('data_utils/data.json', 'r') as reader:
+    with open('data_utils/data_info.json', 'r') as reader:
         data_list = json.load(reader)[position_type]
         mean = data_list['train_info']['mean']
         std = data_list['train_info']['std']

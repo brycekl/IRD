@@ -18,7 +18,7 @@ def main(args):
     print(args)
     device = torch.device(args.device)
 
-    with open('data_utils/data.json', 'r') as reader:
+    with open('data_utils/data_info.json', 'r') as reader:
         json_list = json.load(reader)[args.position_type]
         mean = json_list['train_info']['mean']
         std = json_list['train_info']['std']
