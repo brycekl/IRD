@@ -14,6 +14,12 @@ def generate_json():
     root = '../../datas/IRD/COCO_style/jsons'
     save_json = {'12': [], '13': [], '14': [], '15': [], '4-all': [], 'other': []}
     json_files = [item.split('.json')[0] for item in os.listdir(root)]
+    with open('./data_info.json', ) as reader:
+        data_info = json.load(reader)
+    with open('./spacing.json', ) as reader:
+        spacing = json.load(reader)
+        spacing = list(spacing.keys())
+
     for json_file in json_files:
         json_path = os.path.join(root, json_file + '.json')
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -29,18 +35,24 @@ def generate_json():
             save_json['other'].append(json_file)
 
     final_data = {i: {} for i in save_json.keys()}
-    for i, item in save_json.items():
-        if i == 'other':
-            final_data[i] = save_json[i]
+    for position, data in save_json.items():
+        if position == 'other':
+            final_data[position] = save_json[position]
             continue
-        sampled_list_1 = random.sample(item, int(len(item) * 0.8))
-        sampled_list_2 = [item for item in item if item not in sampled_list_1]
-        train_info = compute_mean_std(os.path.join(os.path.dirname(root), 'images'), sampled_list_1)
-        final_data[i]['train'] = sampled_list_1
-        final_data[i]['val'] = sampled_list_2
-        final_data[i]['train_info'] = train_info
-    with open('data.json', 'w', encoding='utf-8') as f:
-        json.dump(final_data, f)
+        # must be train data if the image do not have spacing
+        val_list = [item for item in data if item.split('__')[0] in spacing]
+        # TODO 采样时，将同一个体位的四个位点图像全部放入训练集或验证集
+        sample_val_list = random.sample(val_list, min(int(len(data) * 0.2), len(val_list)))
+        sample_train_list = [item for item in data if item not in sample_val_list]
+        train_info = compute_mean_std(os.path.join(os.path.dirname(root), 'images'), sample_train_list)
+        final_data[position]['train'] = sample_train_list
+        final_data[position]['val'] = sample_val_list
+        final_data[position]['train_info'] = train_info
+
+    for position, data in final_data.items():
+        data_info[position] = data
+    with open('data_info.json', 'w', encoding='utf-8') as f:
+        json.dump(data_info, f)
 
 
 def compute_mean_std(img_root, data_list):
