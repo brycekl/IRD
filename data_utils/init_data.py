@@ -11,6 +11,9 @@ random.seed(2024)
 
 
 def generate_json():
+    """
+    划分数据集、生成data_info文件，包含有不同体位的训练集、验证集等信息
+    """
     root = '../../datas/IRD/COCO_style/jsons'
     save_json = {'12': [], '13': [], '14': [], '15': [], '4-all': [], 'other': []}
     json_files = [item.split('.json')[0] for item in os.listdir(root)]
@@ -34,25 +37,49 @@ def generate_json():
         else:
             save_json['other'].append(json_file)
 
-    final_data = {i: {} for i in save_json.keys()}
-    for position, data in save_json.items():
-        if position == 'other':
-            final_data[position] = save_json[position]
-            continue
-        # must be train data if the image do not have spacing
-        val_list = [item for item in data if item.split('__')[0] in spacing]
-        # TODO 采样时，将同一个体位的四个位点图像全部放入训练集或验证集
-        sample_val_list = random.sample(val_list, min(int(len(data) * 0.2), len(val_list)))
-        sample_train_list = [item for item in data if item not in sample_val_list]
-        train_info = compute_mean_std(os.path.join(os.path.dirname(root), 'images'), sample_train_list)
-        final_data[position]['train'] = sample_train_list
-        final_data[position]['val'] = sample_val_list
-        final_data[position]['train_info'] = train_info
+    final_data = split_train_data(save_json, spacing, root)
 
     for position, data in final_data.items():
         data_info[position] = data
     with open('data_info.json', 'w', encoding='utf-8') as f:
         json.dump(data_info, f)
+
+
+def split_train_data(save_json, spacing, img_root):
+    """
+    为不同体位划分数据集
+    可选的划分方式way：
+        1. 只将没有spa的数据划分到训练集，其他不做约束。
+        2. 在1的基础上，4-all中同一体位不同位点的数据，需要位于同一集合，方便后续评估。4-all_same
+    """
+    final_data = {i: {} for i in save_json.keys()}
+    for position, data in save_json.items():
+        if position == 'other':
+            final_data[position] = save_json[position]
+            continue
+
+        # must be train data if the image do not have spacing
+        val_list = [item for item in data if item.split('__')[0] in spacing]
+        sample_val_list = random.sample(val_list, min(int(len(data) * 0.2), len(val_list)))
+        sample_train_list = [item for item in data if item not in sample_val_list]
+
+        train_info = compute_mean_std(os.path.join(os.path.dirname(img_root), 'images'), sample_train_list)
+        final_data[position]['train'] = sample_train_list
+        final_data[position]['val'] = sample_val_list
+        final_data[position]['train_info'] = train_info
+
+        # 4-all中，不同位点的数据应该位于同一个集合
+        if position == '4-all':
+            val_list = sorted(set([item.split('__')[0] for item in data if item.split('__')[0] in spacing]))
+            sample_val_list_base_name = random.sample(val_list, min(int(len(data) / 4 * 0.2), len(val_list)))
+            sample_val_list = [item for item in data if item.split('__')[0] in sample_val_list_base_name]
+            sample_train_list = [item for item in data if item not in sample_val_list]
+            train_info = compute_mean_std(os.path.join(os.path.dirname(img_root), 'images'), sample_train_list)
+            final_data['4-all_same'] = {}
+            final_data['4-all_same']['train'] = sample_train_list
+            final_data['4-all_same']['val'] = sample_val_list
+            final_data['4-all_same']['train_info'] = train_info
+    return final_data
 
 
 def compute_mean_std(img_root, data_list):
