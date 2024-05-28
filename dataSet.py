@@ -8,6 +8,7 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from data_utils.visualize import plot_result
+from data_utils.init_data import clahe_image
 
 posture_label = {'PP': 9, 'SP': 10, 'ST': 11}
 position_label = {'B3': 12, 'U3': 13, 'U5': 14, 'UE': 15}
@@ -16,7 +17,7 @@ seg_label = {'left': 8, 'right': 7}
 
 
 class IRDDataset(Dataset):
-    def __init__(self, data_type: str = 'train', position_type='4-all', other_data=False, task='landmark',
+    def __init__(self, data_type: str = 'train', position_type='4-all', other_data=False, task='landmark', clahe=False,
                  transforms=None, ki=-1, k=5):
         assert data_type in ['train', 'val', 'test'], "data_type must be in ['train', 'val', 'test']"
         self.data_root = '../datas/IRD/COCO_style'
@@ -24,6 +25,7 @@ class IRDDataset(Dataset):
         self.data_type = data_type
         self.position_type = position_type
         self.task = task
+        self.clahe = clahe
         self.run_env = '/' if '/data/lk' in os.getcwd() else '\\'
         self.wrong = {'landmark': []}
         self.legal_wrong = {'landmark': []}
@@ -65,7 +67,7 @@ class IRDDataset(Dataset):
 
     def __getitem__(self, index):
         base_name = self.data_list[index]
-        img, landmark, poly_mask = get_name_data(self.data_root, base_name)
+        img, landmark, poly_mask = get_name_data(self.data_root, base_name, self.clahe)
 
         target = {'landmark': landmark, 'poly_mask': poly_mask, 'data_type': self.data_type, 'img_name': base_name,
                   'origin_landmark': landmark, 'transforms': [], 'h_flip': False}
@@ -74,6 +76,7 @@ class IRDDataset(Dataset):
         if self.transforms is not None:
             img, target = self.transforms(img, target)
 
+        img = img.expand(3, -1, -1)
         return img, target
 
     @staticmethod
@@ -104,14 +107,16 @@ def check_data(target, name, wrong, legal_wrong):
             wrong['landmark'].append(name)
 
 
-def get_name_data(data_root, name):
+def get_name_data(data_root, name, clahe=False):
     # load json data
     with open(os.path.join(data_root, 'jsons', name + '.json'), 'r', encoding='utf-8') as f:
         json_data = json.load(f)
 
     # get image
     img_path = os.path.join(data_root, 'images', name + '.png')
-    img = Image.open(img_path).convert('RGB')
+    img = Image.open(img_path).convert('L')
+    img = np.array(img)
+    if clahe: img = clahe_image(img)
 
     # get landmark data
     landmark = json_data['Models']['LandMarkListModel']['Points'][0]['LabelList']
@@ -128,8 +133,8 @@ if __name__ == '__main__':
     # from transforms import RightCrop
     d = os.getcwd()
     import transforms as T
-    mean = (0.12888692, 0.12888692, 0.12888692)
-    std = (0.16037938, 0.16037938, 0.16037938)
+    mean = (0.12888692,)
+    std = (0.16037938,)
     base_size = 256
     trans = T.Compose([
         # T.RandomResize(int(0.8 * base_size), base_size),

@@ -522,7 +522,7 @@ class AffineTransform(object):
 
     def __call__(self, img, target):
         resize_ratio = np.random.uniform(*self.resize_low_high)
-        src_xmax, src_xmin, src_ymax, src_ymin = img.size[0], 0, img.size[1], 0
+        src_xmax, src_xmin, src_ymax, src_ymin = img.shape[1], 0, img.shape[0], 0
         """ resize 选项 """
         # 1. 直接拉伸到self.input_size
         # 2. 如果为训练集， 拉伸过程中缩小，后续使用padding
@@ -571,9 +571,7 @@ class AffineTransform(object):
         reverse_trans = cv2.getAffineTransform(dst, src)  # 计算逆向仿射变换矩阵，方便后续还原
 
         # 对图像进行仿射变换
-        resize_img = cv2.warpAffine(np.array(img),
-                                    trans,
-                                    tuple(input_size[::-1]),  # [w, h]
+        resize_img = cv2.warpAffine(img, trans, tuple(input_size[::-1]),  # [w, h]
                                     flags=cv2.INTER_LINEAR)
         target['poly_mask'] = cv2.warpAffine(np.array(target['poly_mask']), trans, tuple(input_size[::-1]),
                                              flags=cv2.INTER_NEAREST)

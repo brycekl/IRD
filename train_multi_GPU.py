@@ -22,6 +22,9 @@ def main(args):
         json_list = json.load(reader)[args.position_type]
         mean = json_list['train_info']['mean']
         std = json_list['train_info']['std']
+        if args.clahe:
+            mean = json_list['train_info']['clahe_mean']
+            std = json_list['train_info']['clahe_std']
 
     # load args parameters
     task = args.task
@@ -39,9 +42,11 @@ def main(args):
 
     # init dataset
     train_dataset = IRDDataset(data_type='train', position_type=position_type, other_data=args.other_data, task=task,
+                               clahe=args.clahe,
                                transforms=get_transform(train=True, input_size=input_size, task=task,
                                                         var=var, max_value=args.max_value, mean=mean, std=std))
     val_dataset = IRDDataset(data_type='val', position_type=position_type, other_data=args.other_data, task=task,
+                             clahe=args.clahe,
                              transforms=get_transform(train=False, input_size=input_size, task=task,
                                                       var=var, max_value=args.max_value, mean=mean, std=std))
 
@@ -268,6 +273,7 @@ if __name__ == "__main__":
     """ dataset config：配置data, dataset, dataloader, codec, transforms"""
     parser.add_argument('--data-path', default='./', help='dataset')
     parser.add_argument('--task', default='all', type=str, help='[landmark, poly, all]')
+    parser.add_argument('--clahe', action='store_true', help='use clahe to image. default False.')
     parser.add_argument('--position_type', default='4-all', type=str, help='the position type')
     parser.add_argument('--other_data', action='store_true', help='add other position data while training.')
     parser.add_argument('--var', default=40, type=int, help='the variance of heatmap')
