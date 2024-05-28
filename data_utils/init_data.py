@@ -3,6 +3,7 @@ import json
 import random
 from PIL import Image
 import numpy as np
+import cv2
 
 
 posture_label = {'9': 'PP'}
@@ -82,18 +83,28 @@ def split_train_data(save_json, spacing, img_root):
     return final_data
 
 
+def clahe_image(image, clipLimit=2, window_size=16):
+    # 创建CLAHE对象
+    clahe = cv2.createCLAHE(clipLimit=clipLimit, tileGridSize=(window_size, window_size))
+    # 应用CLAHE
+    he_image = clahe.apply(image)
+    return he_image
+
+
 def compute_mean_std(img_root, data_list):
-    img_channels = 3
+    img_channels = 1
     cumulative_mean = np.zeros(img_channels)
     cumulative_std = np.zeros(img_channels)
+    cumulative_clahe_mean = np.zeros(img_channels)
+    cumulative_clahe_std = np.zeros(img_channels)
     height, width = [], []
     height_max, height_min = 0, 10000
     width_max, width_min = 0, 10000
     for item in data_list:
         img_path = os.path.join(img_root, os.path.basename(item).split('.json')[0] + '.png')
         img = Image.open(img_path)
-        if img_channels == 1: img.convert('L')
-        elif img_channels == 3: img.convert('RGB')
+        if img_channels == 1: img = img.convert('L')
+        elif img_channels == 3: img = img.convert('RGB')
         w, h = img.size
         height.append(h)
         width.append(w)
@@ -103,27 +114,35 @@ def compute_mean_std(img_root, data_list):
         height_min = min(height_min, h)
 
         img = np.array(img)
+        he_image = clahe_image(img)
         img = (img - img.min()) / (img.max() - img.min())
+        he_image = (he_image - he_image.min()) / (he_image.max() - he_image.min())
         assert img.max() == 1. and img.min() == 0., item
         # gray image
         cumulative_mean += img.mean()
         cumulative_std += img.std()
+
         # rgb image
         # img = img.reshape(-1, 3)
         # cumulative_mean += img.mean(axis=0)
         # cumulative_std += img.std(axis=0)
 
+        # clahe iamge
+        cumulative_clahe_mean += he_image.mean()
+        cumulative_clahe_std += he_image.std()
+
     mean = cumulative_mean / len(data_list)
     std = cumulative_std / len(data_list)
-    print(f"mean: {mean}")
-    print(f"std: {std}")
+    clahe_mean = cumulative_clahe_mean / len(data_list)
+    clahe_std = cumulative_clahe_std / len(data_list)
+    print(f"mean: {mean}  std: {std}   clahe_mean: {clahe_mean}  clahe_std: {clahe_std}")
     print(f'average height : {np.mean(height)},    height std : {np.std(height)}')
     print(f'average width : {np.mean(width)},    width std : {np.std(width)}')
     print(f'max height : {height_max}   min height : {height_min}')
     print(f'max width : {width_max}   min width : {width_min}')
-    return {'mean': list(mean), 'std': list(std), 'max_h': height_max, 'max_w': width_max,
-            'min_h': height_min, 'min_w': width_min, 'mean_h': np.mean(height), 'mean_w': np.mean(width),
-            'std_h': np.std(height), 'std_w': np.std(width)}
+    return {'mean': list(mean), 'clahe_mean': list(clahe_mean), 'std': list(std), 'clahe_std': list(clahe_std),
+            'max_h': height_max, 'max_w': width_max, 'min_h': height_min, 'min_w': width_min,
+            'mean_h': np.mean(height), 'mean_w': np.mean(width), 'std_h': np.std(height), 'std_w': np.std(width)}
 
 
 if __name__ == '__main__':
