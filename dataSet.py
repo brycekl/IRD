@@ -51,6 +51,11 @@ class IRDDataset(Dataset):
                 self.data_list = all_json[:length * ki] + all_json[length * (ki + 1):]
         else:
             self.data_list = self.data_list[data_type]
+            # 单个体位测试时使用所有体位的数据
+            # if data_type == 'val' and position_type in ['12', '13', '14', '15']:
+            #     base_names = [item.split('__')[0] for item in self.data_list]
+            #     all_4 = all_data['4-all']['train'] + all_data['4-all']['val']
+            #     self.data_list = [item for item in all_4 if item.split('__')[0] in base_names]
 
         # add other position data
         if other_data and data_type == 'train':
@@ -113,10 +118,18 @@ def get_name_data(data_root, name, clahe=False):
         json_data = json.load(f)
 
     # get image
-    img_path = os.path.join(data_root, 'images', name + '.png')
-    img = Image.open(img_path).convert('L')
+    # CLAHE太慢，这里预先生成好结果，直接进行读取
+    if not clahe:
+        img_path = os.path.join(data_root, 'images', name + '.png')
+        img = Image.open(img_path).convert('L')
+    else:
+        try:
+            img = Image.open(os.path.join(data_root, 'clahe_images', name + '.png'))
+        except:
+            img_path = os.path.join(data_root, 'images', name + '.png')
+            img = Image.open(img_path).convert('L')
+            img = clahe_image(np.array(img))
     img = np.array(img)
-    if clahe: img = clahe_image(img)
 
     # get landmark data
     landmark = json_data['Models']['LandMarkListModel']['Points'][0]['LabelList']
