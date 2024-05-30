@@ -9,14 +9,15 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
 
-from dataSet import IRDDataset
+from dataSet import IRDDataset, get_name_data
 from train_multi_GPU import create_model, get_transform
 from train_utils.distributed_utils import get_default_device
+from data_utils.visualize import plot_result
 
 
 def main():
     # init basic setting
-    model_path = 'model/240529/landmark/14_14_var40_3.989'
+    model_path = 'model/240528-clahe/poly/14_tall_14_0.904'
     model_weight_name = 'best_model.pth'
     device = get_default_device()
     print("using {} device.".format(device))
@@ -57,45 +58,64 @@ def main():
     result = {'name': [], 'left_mse': [], 'right_mse': []} if task == 'landmark' else None
     result = {'name': [], 'left_dice': [], 'right_dice': []} if task == 'poly' else result
     result = {'name': [], 'left_mse': [], 'right_mse': [], 'left_dice': [], 'right_dice': []} if task == 'all' else result
+    target, pre_target = {}, {}   # for visualization
+    with open('./data_utils/spacing.json') as reader:
+        spacing = json.load(reader)
 
     # begin to predict
     for img, target in val_data_loader:
         name = target['img_name'][0]
         print(name)
         img = img.to(device)
-        output = model(img).to('cpu').detach()
-        show_img = np.array(target['show_img'][0])
+        output = model(img).to('cpu').detach().numpy()[0]
+        show_img, landmark_gt, poly_gt = get_name_data('../datas/IRD/COCO_style', name, config['clahe'])
+        show_img = np.stack([show_img] * 3, axis=2)
         result['name'].append(name)
         if task in ['landmark', 'all']:
-            landmark_gt = {ind: [int(item[0] + 0.5), int(item[1] + 0.5)] for ind, item in target['landmark'][0].items()}
+            output_landmark = cv2.warpAffine(np.transpose(output[:2], (1, 2, 0)), target['reverse_trans'][0],
+                                             show_img.shape[:2][::-1], flags=cv2.INTER_LINEAR)
             landmark_pre = {ind: [0, 0] for ind in landmark_gt}
-            for i, pre in enumerate(output[0][:2]):
+            spa_name = 1 if name.split('__')[0] not in spacing else spacing[name.split('__')[0]] * 10  # mm
+            for i in range(2):
+                pre = output_landmark[:, :, i]
                 left_right = 'left' if i == 0 else 'right'
                 y, x = np.where(pre == pre.max())
                 landmark_pre[i+5] = [x[0], y[0]]
-                point = target['landmark'][0][i + 5]  # label=i+8
-                result[left_right+'_mse'].append(math.sqrt(math.pow(x[0] - point[0], 2) + math.pow(y[0] - point[1], 2)))
+                point = landmark_gt[i + 5]  # label=i+8
+                result[left_right+'_mse'].append(spa_name * math.sqrt(math.pow(x[0] - point[0], 2) + math.pow(y[0] - point[1], 2)))
                 # save heatmap result
                 pre_array = np.array(pre)
                 pre_array = (pre_array - pre_array.min()) / (pre_array.max() - pre_array.min()) * 255
                 pre_image = Image.fromarray(pre_array.astype(np.uint8))
                 pre_image.save(os.path.join(save_root, 'heatmap', name + f'_{left_right}.png'))
 
-            cv2.circle(show_img, landmark_gt[5], 1, [255, 0, 0], -1)
-            cv2.circle(show_img, landmark_gt[6], 1, [255, 0, 0], -1)
-            cv2.circle(show_img, landmark_pre[5], 1, [0, 255, 0], -1)
-            cv2.circle(show_img, landmark_pre[6], 1, [0, 255, 0], -1)
-            cv2.putText(show_img, f'left_mse: {round(result["left_mse"][-1], 2)}pix', [20, show_img.shape[0] - 35],
-                        cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 0, 255), 1)
-            cv2.putText(show_img, f'right_mse: {round(result["right_mse"][-1], 2)}pix', [20, show_img.shape[0] - 15],
-                        cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 255), 1)
-            show_img = Image.fromarray(show_img)
-            show_img.save(os.path.join(save_root, 'result', name + '.png'))
+            landmark_gt = {i: [int(z) for z in j] for i, j in landmark_gt.items()}
+            target['landmark'] = landmark_gt
+            pre_target['landmark'] = landmark_pre
+            pre_target['mse'] = {5: result["left_mse"][-1], 6: result["right_mse"][-1]}
 
         if task in ['poly', 'all']:
-            pass
+            output_poly = cv2.warpAffine(np.transpose(output[-3:], (1, 2, 0)), target['reverse_trans'][0],
+                                         show_img.shape[:2][::-1], flags=cv2.INTER_NEAREST)
+            output_poly = np.argmax(output_poly, axis=2)
+            poly_gt = np.array(poly_gt)
+            pre_mask = np.zeros((2, *show_img.shape[:2]))
+            gt_mask = np.zeros((2, *show_img.shape[:2]))
+            for i in range(2):
+                pre_ = output_poly == (i+1)
+                gt_ = poly_gt == (i+1)
+                intersection = np.logical_and(pre_, gt_)
+                dice = 2 * intersection.sum() / (pre_.sum() + gt_.sum())
+                left_right = 'left' if i == 0 else 'right'
+                result[f'{left_right}_dice'].append(dice)
+                pre_mask[i] = pre_
+                gt_mask[i] = gt_
+            pre_target['mask'] = pre_mask
+            target['mask'] = gt_mask
+
+        plot_result(show_img, target, pre_target, task=config['task'], save_path=f'{save_root}/result', title=name)
     df = pd.DataFrame(result)
-    df.to_excel(os.path.join(save_root, 'mse_mm.xlsx'), index=False)
+    df.to_excel(os.path.join(save_root, 'result.xlsx'), index=False)
 
 
 if __name__ == '__main__':
