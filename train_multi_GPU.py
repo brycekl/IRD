@@ -91,7 +91,7 @@ def main(args):
     scaler = torch.cuda.amp.GradScaler() if args.amp else None
 
     # 创建学习率更新策略，这里是每个step更新一次(不是每个epoch)
-    lr_scheduler = create_lr_scheduler(optimizer, len(train_data_loader), args.epochs, warmup=True)
+    # lr_scheduler = create_lr_scheduler(optimizer, len(train_data_loader), args.epochs, warmup=True)
 
     # 如果传入resume参数，即上次训练的权重地址，则接着上次的参数训练
     if args.resume:
@@ -101,7 +101,7 @@ def main(args):
         checkpoint = torch.load(args.resume, map_location='cpu')  # 读取之前保存的权重文件(包括优化器以及学习率策略)
         model_without_ddp.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-        lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+        # lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
         args.start_epoch = checkpoint['epoch'] + 1
         if args.amp:
             scaler.load_state_dict(checkpoint["scaler"])
@@ -133,7 +133,7 @@ def main(args):
         if epoch == 0 and args.resume:
             evaluate(model, val_data_loader, device=device, num_classes=num_classes)
         mean_loss, lr = train_one_epoch(model, optimizer, train_data_loader, device, epoch, num_classes,
-                                        lr_scheduler=lr_scheduler, print_freq=args.print_freq, scaler=scaler)
+                                        print_freq=args.print_freq, scaler=scaler)
         val_loss, val_mse = evaluate(model, val_data_loader, device=device, num_classes=num_classes)
 
         # 根据验证结果，求得平均指标，并判断是否需要保存模型
@@ -193,7 +193,7 @@ def main(args):
                 # 只在主节点上执行保存权重操作
                 save_file = {'model': model_without_ddp.state_dict(),
                              'optimizer': optimizer.state_dict(),
-                             'lr_scheduler': lr_scheduler.state_dict(),
+                             # 'lr_scheduler': lr_scheduler.state_dict(),
                              'args': args,
                              'epoch': epoch}
                 if args.amp:

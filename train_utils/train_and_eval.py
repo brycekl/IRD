@@ -99,7 +99,7 @@ def evaluate(model, data_loader, device, num_classes, weight=1):
     return loss, {'mse_total': mse, 'mse_classes': m_mse}
 
 
-def train_one_epoch(model, optimizer, data_loader, device, epoch, num_classes, lr_scheduler, print_freq=10,
+def train_one_epoch(model, optimizer, data_loader, device, epoch, num_classes, lr_scheduler=None, print_freq=10,
                     scaler=None, weight=1):
     model.train()
     # MetricLogger 度量记录器 :为了统计各项数据，通过调用来使用或显示各项指标，通过具体项目自定义的函数
@@ -144,7 +144,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, num_classes, l
             back_loss.backward()
             optimizer.step()
 
-        lr_scheduler.step()
+        # lr_scheduler.step()
 
         lr = optimizer.param_groups[0]["lr"]
         metric_logger.update(lr=lr)
