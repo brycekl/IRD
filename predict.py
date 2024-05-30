@@ -16,7 +16,7 @@ from train_utils.distributed_utils import get_default_device
 
 def main():
     # init basic setting
-    model_path = 'model/20240218/landmark/unet_keypoint_1_4-all_var40_6.551'
+    model_path = 'model/240529/landmark/14_14_var40_3.989'
     model_weight_name = 'best_model.pth'
     device = get_default_device()
     print("using {} device.".format(device))
@@ -24,12 +24,12 @@ def main():
 
     # load model config
     with open(os.path.join(model_path, 'config.json')) as reader:
-        model_config = json.load(reader)
-    task = model_config['task']
-    num_classes = 2 if task in ['landmark', 'poly'] else 4
-    position_type = model_config['position_type']
-    model_name = model_config['model_name'] if model_config.get('model_name') else 'unet'
-    model_base_c = model_config['base_c'] if model_config.get('base_c') else model_config['unet_bc']
+        config = json.load(reader)
+    task = config['task']
+    num_classes = 2 if task == 'landmark' else 3 if task == 'poly' else 5
+    position_type = config['position_type']
+    model_name = config['model_name'] if config.get('model_name') else 'unet'
+    model_base_c = config['base_c'] if config.get('base_c') else config['unet_bc']
 
     # init model
     model = create_model(num_classes=num_classes, base_c=model_base_c, model=model_name)
@@ -42,10 +42,10 @@ def main():
         json_list = json.load(reader)[position_type]
         mean = json_list['train_info']['mean']
         std = json_list['train_info']['std']
-    val_dataset = IRDDataset(data_type='val', position_type=position_type, task=task,
-                             transforms=get_transform(train=False, base_size=model_config['base_size'], task=task,
-                                                      var=model_config['var'], max_value=model_config['max_value'],
-                                                      mean=mean, std=std))
+    val_dataset = IRDDataset(data_type='val', position_type=position_type, task=task, clahe=config['clahe'],
+                             transforms=get_transform(train=False, input_size=config['input_size'], task=task,
+                                                      var=config['var'], max_value=config['max_value'],
+                                                      mean=mean, std=std, stretch=config['stretch']))
     test_sampler = torch.utils.data.SequentialSampler(val_dataset)
     val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, sampler=test_sampler, num_workers=1,
                                                   collate_fn=val_dataset.collate_fn)

@@ -43,12 +43,12 @@ def main(args):
     # init dataset
     train_dataset = IRDDataset(data_type='train', position_type=position_type, other_data=args.other_data, task=task,
                                clahe=args.clahe,
-                               transforms=get_transform(train=True, input_size=input_size, task=task,
-                                                        var=var, max_value=args.max_value, mean=mean, std=std))
+                               transforms=get_transform(train=True, input_size=input_size, task=task, stretch=args.stretch,
+                                                        max_value=args.max_value, var=var, mean=mean, std=std))
     val_dataset = IRDDataset(data_type='val', position_type=position_type, other_data=args.other_data, task=task,
                              clahe=args.clahe,
-                             transforms=get_transform(train=False, input_size=input_size, task=task,
-                                                      var=var, max_value=args.max_value, mean=mean, std=std))
+                             transforms=get_transform(train=False, input_size=input_size, task=task, stretch=args.stretch,
+                                                      max_value=args.max_value, var=var, mean=mean, std=std))
 
     print("Creating data loaders")
     # 将数据打乱后划分到不同的gpu上
@@ -203,7 +203,7 @@ def main(args):
                     save_on_master(save_file, os.path.join(output_dir, 'best_model.pth'))
                     print('save best model')
                 if args.save_best and save_model['save_dice']:
-                    save_on_master(save_file, os.path.join(output_dir, 'best_dice_model.pth'))
+                    save_on_master(save_file, os.path.join(output_dir, 'best_model.pth'))
                     print('save best dice model')
 
     # 训练结束，将最优结果写入txt
