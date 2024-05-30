@@ -17,16 +17,25 @@ def plot_result(img, target, pre_target=None, task='poly', title='', save_path=N
     img = (img - img.min()) / (img.max() - img.min())
     poly_factor = 0.75 if pre_target else 0.5
 
-    if task in ['poly', 'all']:
-        mask_gt = target['mask'][-2:]
-        for mask_gt_item in mask_gt:
-            mask_ind = np.where(mask_gt_item == 1)
-            img[mask_ind[0], mask_ind[1], 0] = img[mask_ind[0], mask_ind[1], 0] * poly_factor + (1-poly_factor)  # 花式索引
-        if pre_target:
-            mask_pre = pre_target['mask'][-2:]
-            for mask_pre_item in mask_pre:
-                mask_ind = np.where(mask_pre_item == 1)
-                img[mask_ind[0], mask_ind[1], 1] = img[mask_ind[0], mask_ind[1], 1] * poly_factor + (1-poly_factor)
+    mask_gt = target['mask'][-2:]
+    for mask_gt_item in mask_gt:
+        mask_ind = np.where(mask_gt_item == 1)
+        img[mask_ind[0], mask_ind[1], 0] = img[mask_ind[0], mask_ind[1], 0] * poly_factor + (1 - poly_factor)  # 花式索引
+    if task in ['poly', 'all'] and pre_target:
+        mask_pre = pre_target['mask'][-2:]
+        for mask_pre_item in mask_pre:
+            mask_ind = np.where(mask_pre_item == 1)
+            img[mask_ind[0], mask_ind[1], 1] = img[mask_ind[0], mask_ind[1], 1] * poly_factor + (1-poly_factor)
+        # 如果task为poly，则为poly绘制腹直肌间距
+        if task == 'poly' and 'keypoint' in pre_target:
+            keypoint = pre_target['keypoint']
+            p_dis = pre_target['p_dis']
+            cv2.line(img, keypoint['gt'][5], keypoint['gt'][6], (1, 0, 0), 2)
+            cv2.line(img, keypoint['pre'][5], keypoint['pre'][6], (0, 1, 0), 2)
+            cv2.putText(img, f'GT: {round(p_dis["p_dis_gt"], 2)}mm', [20, img.shape[0] - 60],
+                        cv2.FONT_HERSHEY_COMPLEX, 1, (1, 0, 0), 2)
+            cv2.putText(img, f'Pre: {round(p_dis["p_dis_pre"], 2)}mm', [20, img.shape[0] - 30],
+                        cv2.FONT_HERSHEY_COMPLEX, 1, (0, 1, 0), 2)
 
     # should first visualize mask and then landmark
     if task in ['landmark', 'all']:
@@ -37,6 +46,19 @@ def plot_result(img, target, pre_target=None, task='poly', title='', save_path=N
             landmark_pre = {i: [int(j[0] + 0.5), int(j[1] + 0.5)] for i, j in pre_target['landmark'].items()}
             for point in landmark_pre.values():
                 cv2.circle(img, point, 2, (0, 1, 0), -1)
+            if 'mse' in pre_target:
+                keypoint = {'gt': target['landmark'], 'pre': pre_target['landmark']}
+                l_dis = pre_target['l_dis']
+                cv2.line(img, keypoint['gt'][5], keypoint['gt'][6], (1, 0, 0), 2)
+                cv2.line(img, keypoint['pre'][5], keypoint['pre'][6], (0, 1, 0), 2)
+                cv2.putText(img, f'l_mse: {round(pre_target["mse"][5], 2)}mm', [20, img.shape[0] - 60],
+                            cv2.FONT_HERSHEY_COMPLEX, 1, (1, 0, 1), 2)
+                cv2.putText(img, f'r_mse: {round(pre_target["mse"][6], 2)}mm', [20, img.shape[0] - 30],
+                            cv2.FONT_HERSHEY_COMPLEX, 1, (1, 0, 1), 2)
+                cv2.putText(img, f'GT: {round(l_dis["l_dis_gt"], 2)}mm', [350, img.shape[0] - 60],
+                            cv2.FONT_HERSHEY_COMPLEX, 1, (1, 0, 0), 2)
+                cv2.putText(img, f'Pre: {round(l_dis["l_dis_pre"], 2)}mm', [350, img.shape[0] - 30],
+                            cv2.FONT_HERSHEY_COMPLEX, 1, (0, 1, 0), 2)
 
     plt.title(title)
     if save_path:

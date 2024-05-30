@@ -138,6 +138,7 @@ def get_name_data(data_root, name, clahe=False):
     # get mask
     mask_path = os.path.join(data_root, 'masks', name + '.png')
     poly_mask = Image.open(mask_path)
+    poly_mask = np.array(poly_mask)
 
     return img, landmark, poly_mask
 

@@ -573,7 +573,7 @@ class AffineTransform(object):
         # 对图像进行仿射变换
         resize_img = cv2.warpAffine(img, trans, tuple(input_size[::-1]),  # [w, h]
                                     flags=cv2.INTER_LINEAR)
-        target['poly_mask'] = cv2.warpAffine(np.array(target['poly_mask']), trans, tuple(input_size[::-1]),
+        target['poly_mask'] = cv2.warpAffine(target['poly_mask'], trans, tuple(input_size[::-1]),
                                              flags=cv2.INTER_NEAREST)
 
         affine_landmark = np.array([target['landmark'][5], target['landmark'][6]])
