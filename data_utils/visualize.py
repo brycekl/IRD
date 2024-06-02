@@ -32,9 +32,13 @@ def plot_result(img, target, pre_target=None, task='poly', title='', save_path=N
             p_dis = pre_target['p_dis']
             cv2.line(img, keypoint['gt'][5], keypoint['gt'][6], (1, 0, 0), 2)
             cv2.line(img, keypoint['pre'][5], keypoint['pre'][6], (0, 1, 0), 2)
-            cv2.putText(img, f'GT: {round(p_dis["p_dis_gt"], 2)}mm', [20, img.shape[0] - 60],
+            cv2.putText(img, f'l_mse: {round(pre_target["p_mse"][5], 2)}mm', [20, img.shape[0] - 60],
+                        cv2.FONT_HERSHEY_COMPLEX, 1, (1, 0, 1), 2)
+            cv2.putText(img, f'r_mse: {round(pre_target["p_mse"][6], 2)}mm', [20, img.shape[0] - 30],
+                        cv2.FONT_HERSHEY_COMPLEX, 1, (1, 0, 1), 2)
+            cv2.putText(img, f'GT: {round(p_dis["p_dis_gt"], 2)}mm', [350, img.shape[0] - 60],
                         cv2.FONT_HERSHEY_COMPLEX, 1, (1, 0, 0), 2)
-            cv2.putText(img, f'Pre: {round(p_dis["p_dis_pre"], 2)}mm', [20, img.shape[0] - 30],
+            cv2.putText(img, f'Pre: {round(p_dis["p_dis_pre"], 2)}mm', [350, img.shape[0] - 30],
                         cv2.FONT_HERSHEY_COMPLEX, 1, (0, 1, 0), 2)
 
     # should first visualize mask and then landmark
@@ -46,14 +50,14 @@ def plot_result(img, target, pre_target=None, task='poly', title='', save_path=N
             landmark_pre = {i: [int(j[0] + 0.5), int(j[1] + 0.5)] for i, j in pre_target['landmark'].items()}
             for point in landmark_pre.values():
                 cv2.circle(img, point, 2, (0, 1, 0), -1)
-            if 'mse' in pre_target:
+            if 'l_mse' in pre_target:
                 keypoint = {'gt': target['landmark'], 'pre': pre_target['landmark']}
                 l_dis = pre_target['l_dis']
                 cv2.line(img, keypoint['gt'][5], keypoint['gt'][6], (1, 0, 0), 2)
                 cv2.line(img, keypoint['pre'][5], keypoint['pre'][6], (0, 1, 0), 2)
-                cv2.putText(img, f'l_mse: {round(pre_target["mse"][5], 2)}mm', [20, img.shape[0] - 60],
+                cv2.putText(img, f'l_mse: {round(pre_target["l_mse"][5], 2)}mm', [20, img.shape[0] - 60],
                             cv2.FONT_HERSHEY_COMPLEX, 1, (1, 0, 1), 2)
-                cv2.putText(img, f'r_mse: {round(pre_target["mse"][6], 2)}mm', [20, img.shape[0] - 30],
+                cv2.putText(img, f'r_mse: {round(pre_target["l_mse"][6], 2)}mm', [20, img.shape[0] - 30],
                             cv2.FONT_HERSHEY_COMPLEX, 1, (1, 0, 1), 2)
                 cv2.putText(img, f'GT: {round(l_dis["l_dis_gt"], 2)}mm', [350, img.shape[0] - 60],
                             cv2.FONT_HERSHEY_COMPLEX, 1, (1, 0, 0), 2)
