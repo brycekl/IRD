@@ -52,3 +52,100 @@ CUDA_VISIBLE_DEVICES=2,3 torchrun --nproc_per_node=2 train_multi_GPU.py --model_
 CUDA_VISIBLE_DEVICES=2,3 torchrun --nproc_per_node=2 train_multi_GPU.py --model_name=unet --lr=0.005 --task=all --output=./model/20240228/unet_od_bc32_nlf_stretch --other_data --stretch
 
 
+""" landmark """
+1. 不同位点数据情况
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240527-landmark-dfposition/12 --base_c=32 --position_type=12
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240527-landmark-dfposition/13 --base_c=32 --position_type=13
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240527-landmark-dfposition/14 --base_c=32 --position_type=14
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240527-landmark-dfposition/15 --base_c=32 --position_type=15
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240527-landmark-dfposition/all --base_c=32 --position_type=4-all
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240527-landmark-dfposition/all_same --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240527-landmark-dfposition/all_od --other_data --base_c=32 --position_type=4-all
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240527-landmark-dfposition/all_same_od --other_data --base_c=32 --position_type=4-all_same
+2. 
+
+""" poly """
+1. 不同位点数据情况
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29501 train_multi_GPU_.py --lr=0.001 --task=poly --output=./model/240527-poly-dfposition/12 --base_c=32 --position_type=12
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29501 train_multi_GPU_.py --lr=0.001 --task=poly --output=./model/240527-poly-dfposition/13 --base_c=32 --position_type=13
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29501 train_multi_GPU_.py --lr=0.001 --task=poly --output=./model/240527-poly-dfposition/14 --base_c=32 --position_type=14
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29501 train_multi_GPU_.py --lr=0.001 --task=poly --output=./model/240527-poly-dfposition/15 --base_c=32 --position_type=15
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29501 train_multi_GPU_.py --lr=0.001 --task=poly --output=./model/240527-poly-dfposition/all --base_c=32 --position_type=4-all
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29501 train_multi_GPU_.py --lr=0.001 --task=poly --output=./model/240527-poly-dfposition/all_same --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29501 train_multi_GPU_.py --lr=0.001 --task=poly --output=./model/240527-poly-dfposition/all_od --other_data --base_c=32 --position_type=4-all
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29501 train_multi_GPU_.py --lr=0.001 --task=poly --output=./model/240527-poly-dfposition/all_same_od --other_data --base_c=32 --position_type=4-all_same
+
+# 测试clahe
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --clahe --output=./model/240528-clahe/12_tall --base_c=32 --position_type=12
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --clahe --output=./model/240528-clahe/13_tall --base_c=32 --position_type=13
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --clahe --output=./model/240528-clahe/14_tall --base_c=32 --position_type=14
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --clahe --output=./model/240528-clahe/15_tall --base_c=32 --position_type=15
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --clahe --output=./model/240527-clahe/all --base_c=32 --position_type=4-all
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --clahe --output=./model/240527-clahe/all_same --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --clahe --output=./model/240527-clahe/all_od --other_data --base_c=32 --position_type=4-all
+CUDA_VISIBLE_DEVICES=1,2 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --clahe --output=./model/240527-clahe/all_same_od --other_data --base_c=32 --position_type=4-all_same
+
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=poly --clahe --output=./model/240528-clahe/12_tall --base_c=32 --position_type=12
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=poly --clahe --output=./model/240528-clahe/13_tall --base_c=32 --position_type=13
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=poly --clahe --output=./model/240528-clahe/14_tall --base_c=32 --position_type=14
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=poly --clahe --output=./model/240528-clahe/15_tall --base_c=32 --position_type=15
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=poly --clahe --output=./model/240528-clahe/all --base_c=32 --position_type=4-all
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=poly --clahe --output=./model/240528-clahe/all_same --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=poly --clahe --output=./model/240528-clahe/all_od --other_data --base_c=32 --position_type=4-all
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=poly --clahe --output=./model/240528-clahe/all_same_od --other_data --base_c=32 --position_type=4-all_same
+
+# 一次测试所有位点
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240528/12_tall --base_c=32 --position_type=12
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240528/13_tall --base_c=32 --position_type=13
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240528/14_tall --base_c=32 --position_type=14
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240528/15_tall --base_c=32 --position_type=15
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240528/all --base_c=32 --position_type=4-all
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240528/all_same --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240528/all_od --other_data --base_c=32 --position_type=4-all
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29502 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240528/all_same_od --other_data --base_c=32 --position_type=4-all_same
+
+# 测试数据是否有问题
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529/12_tall --base_c=32 --position_type=12
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529/13_tall --base_c=32 --position_type=13
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529/14_tall --base_c=32 --position_type=14
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529/15_tall --base_c=32 --position_type=15
+
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529/12 --base_c=32 --position_type=12
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529/13 --base_c=32 --position_type=13
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529/14 --base_c=32 --position_type=14
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529/15 --base_c=32 --position_type=15
+
+# 测试landmark，所有体位都使用12的划分方式进行训练
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529_split12/12_tall --base_c=32 --position_type=12
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529_split12/13_tall --base_c=32 --position_type=13
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529_split12/14_tall --base_c=32 --position_type=14
+CUDA_VISIBLE_DEVICES=0,3 torchrun --nproc_per_node=2 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529_split12/15_tall --base_c=32 --position_type=15
+
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529_split12/12 --base_c=32 --position_type=12
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529_split12/13 --base_c=32 --position_type=13
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529_split12/14 --base_c=32 --position_type=14
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 --master_port=29503 train_multi_GPU.py --lr=0.001 --task=landmark --output=./model/240529_split12/15 --base_c=32 --position_type=15
+
+# 45号机，4卡，bs 64 lr * 2
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 train_multi_GPU.py --lr=0.002 --batch-size=64 --task=landmark --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 train_multi_GPU.py --lr=0.002 --batch-size=64 --task=poly --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 train_multi_GPU.py --lr=0.002 --batch-size=64 --task=all --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 train_multi_GPU.py --lr=0.001 --batch-size=64 --task=landmark --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 train_multi_GPU.py --lr=0.001 --batch-size=64 --task=poly --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 train_multi_GPU.py --lr=0.001 --batch-size=64 --task=all --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+
+# 42号机，2卡，bs 32 lr
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --batch-size=32 --task=landmark --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --batch-size=32 --task=poly --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --batch-size=32 --task=all --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --batch-size=32 --clahe --task=landmark --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --batch-size=32 --clahe --task=poly --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node=2 train_multi_GPU.py --lr=0.001 --batch-size=32 --clahe --task=all --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+
+# 43号机， 1卡，bs 32 lr/2
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 train_multi_GPU.py --lr=0.0005 --batch-size=32 --task=landmark --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 train_multi_GPU.py --lr=0.0005 --batch-size=32 --task=poly --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 train_multi_GPU.py --lr=0.0005 --batch-size=32 --task=all --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 train_multi_GPU.py --lr=0.0005 --batch-size=32 --clahe --task=landmark --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 train_multi_GPU.py --lr=0.0005 --batch-size=32 --clahe --task=poly --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 train_multi_GPU.py --lr=0.0005 --batch-size=32 --clahe --task=all --output=./model/240530/all_same_od --other_data --base_c=32 --position_type=4-all_same

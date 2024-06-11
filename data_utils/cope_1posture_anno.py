@@ -163,12 +163,13 @@ if __name__ == '__main__':
     """
     used for cope the data with four position of PP posture
     """
-    root = '../../datas/IRD/data_backup/267-290gaoya'
+    data_name = '501-508'
+    root = f'../../datas/IRD/{data_name}'
     img_root = '../../datas/IRD/{}/images'.format('COCO_style')
     json_root = '../../datas/IRD/{}/jsons'.format('COCO_style')
     mask_root = '../../datas/IRD/{}/masks'.format('COCO_style')
     pair_root = '../../datas/IRD/{}/pair_files'.format('COCO_style')
-    # 错误类型：标注文件数量错误，单张图片未标注两个点，单张图片未标注两个区域，整个文件夹未标注四个position
+    # 错误类型：标注文件数量错误，单张图片未标注两个点，单张图片未标注两个区域，整个文件夹未标注四个position，左右点位置错误（右小于左）
     error_info = {'anno_num_error': [], 'no_two_landmark': [], 'no_two_region': [], 'no_all_position': {},
                   'landmark_anno_error': []}   # todo 在此处定义的变量为模块级别的变量，在整个模块内可见
 
@@ -204,7 +205,10 @@ if __name__ == '__main__':
                 continue
             cope_img(os.path.join(dir_path, image_name), img_root, final_name, ext, pair_path=pair_root)
             cope_mask(mask_file[0], mask_root, final_name, binary_TF=True, pair_path=pair_root)
-            cope_json(json_file[0], json_root, final_name, all_titai=all_titai, pair_path=pair_root)
+            try:
+                cope_json(json_file[0], json_root, final_name, all_titai=all_titai, pair_path=pair_root)
+            except:
+                print(f'get error when coping json {final_name}')
         no_exist = check_titai(all_titai)
         if no_exist:
             error_info['no_all_position'][dir_name] = no_exist
